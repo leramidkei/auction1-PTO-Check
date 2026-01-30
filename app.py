@@ -9,29 +9,40 @@ import time
 import datetime
 
 # ==============================================================================
-# 1. 페이지 설정 및 모바일 최적화 UI
+# 1. 페이지 설정 및 모바일 최적화 UI (CSS 수정됨)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered")
 
 st.markdown("""
     <style>
     [data-testid="stAppViewContainer"] { background-color: #f0f2f5; }
+    
     .block-container {
         max-width: 450px;
-        padding: 2rem 1rem;
+        /* [수정] 상단 여백을 2rem -> 5rem으로 늘려 버튼 잘림 방지 */
+        padding: 5rem 1rem 2rem 1rem; 
         margin: auto;
         background-color: #ffffff;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         min-height: 100vh;
     }
-    @media (max-width: 450px) { .block-container { max-width: 100%; box-shadow: none; } }
+    
+    @media (max-width: 450px) { 
+        .block-container { 
+            max-width: 100%; 
+            box-shadow: none;
+            /* 모바일에서도 상단 여백 확보 */
+            padding-top: 4rem; 
+        } 
+    }
+    
     .stButton>button { width: 100%; border-radius: 8px; font-weight: bold; }
     [data-testid="stMetricValue"] { font-size: 32px; color: #1f77b4; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 및 파일 관리 (안정성 강화 버전)
+# 2. 구글 드라이브 인증 및 파일 관리
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -55,7 +66,6 @@ def get_all_files():
     service = get_drive_service()
     if not service: return None, None, []
     
-    # 연결 재시도 로직 (안정성 확보)
     for _ in range(2):
         try:
             query = f"'{FOLDER_ID}' in parents and trashed=false"
@@ -82,8 +92,7 @@ def load_user_db(file_id):
     try:
         request = service.files().get_media(fileId=file_id)
         return json.load(io.BytesIO(request.execute()))
-    except:
-        return {}
+    except: return {}
 
 def save_user_db(file_id, data):
     service = get_drive_service()
@@ -92,14 +101,11 @@ def save_user_db(file_id, data):
         media = MediaIoBaseUpload(io.BytesIO(json_str.encode('utf-8')), mimetype='application/json')
         service.files().update(fileId=file_id, media_body=media).execute()
         return True
-    except:
-        return False
+    except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 로직 (서울지사 맞춤형)
+# 3. 데이터 파싱 로직
 # ==============================================================================
-
-# A. 월별 출근부 파서
 def parse_attendance(file_content):
     try:
         df_raw = pd.read_excel(file_content, header=None)
@@ -142,50 +148,28 @@ def parse_attendance(file_content):
         return pd.DataFrame(parsed)
     except: return pd.DataFrame()
 
-# B. 갱신 연차계산표 파서 (수정됨: 해당연도 반영)
 def parse_renewal_excel(file_content):
     try:
-        # 1. 파일 상단(A2)에서 '해당연도' 정보 읽기 (케이님 요청 반영)
         df_meta = pd.read_excel(file_content, header=None, nrows=3)
-        try:
-            # A2 셀(인덱스 [1, 0])에 '2026' 같은 연도가 있다고 가정
-            target_year = int(df_meta.iloc[1, 0])
-        except:
-            # 읽기 실패 시 현재 시스템 연도 사용 (안전장치)
-            target_year = datetime.datetime.now().year
+        try: target_year = int(df_meta.iloc[1, 0])
+        except: target_year = datetime.datetime.now().year
             
-        # 2. 데이터 본문 읽기 (4번째 줄부터 헤더)
         file_content.seek(0)
         df = pd.read_excel(file_content, header=3)
         df.columns = df.columns.astype(str).str.replace(" ", "").str.replace("\n", "")
         
         parsed_renewal = []
         for i, row in df.iterrows():
-            # 첫 번째 컬럼(성명) 또는 '이름' 컬럼 찾기
             name = str(row.iloc[0]).replace(" ", "").strip()
-            
             if name and name != "nan" and name != "이름":
                 try:
-                    # 입사일의 월, 일 정보 가져오기
-                    month = int(row['월'])
-                    day = int(row['일'])
-                    
-                    # [핵심] 연도는 '입사년도(row['연'])'가 아닌 '타겟연도(target_year)' 사용
+                    month = int(row['월']); day = int(row['일'])
                     renewal_date = f"{target_year}-{month:02d}-{day:02d}"
-                    
-                    # '올해발생연차개수' 컬럼에서 값 추출
                     count = row.get('올해발생연차개수', 0)
-                    
-                    parsed_renewal.append({
-                        '이름': name,
-                        '갱신일': renewal_date,
-                        '갱신개수': count
-                    })
-                except:
-                    continue
+                    parsed_renewal.append({'이름': name, '갱신일': renewal_date, '갱신개수': count})
+                except: continue
         return pd.DataFrame(parsed_renewal)
-    except:
-        return pd.DataFrame()
+    except: return pd.DataFrame()
 
 @st.cache_data(ttl=600)
 def fetch_excel(file_id, is_renewal=False):
@@ -200,22 +184,19 @@ def fetch_excel(file_id, is_renewal=False):
 # ==============================================================================
 # 4. 메인 애플리케이션
 # ==============================================================================
-
-# 파일 정보 로드
 user_db_id, renewal_id, monthly_files = get_all_files()
 
 if not user_db_id:
-    st.error("데이터 연결이 원활하지 않습니다. 잠시 후 새로고침(F5) 해주세요.")
+    st.error("데이터 연결 실패. (user_db.json 없음)")
     st.stop()
 
-# 세션 관리
 if 'user_db' not in st.session_state:
     st.session_state.user_db = load_user_db(user_db_id)
 
 if 'login_status' not in st.session_state:
     st.session_state.login_status = False
 
-# --- UI: 로그인/비번변경/메인 ---
+# --- UI 로직 ---
 if not st.session_state.login_status:
     st.title("🏢 옥션원 서울지사")
     st.subheader("연차 확인 시스템")
@@ -232,24 +213,40 @@ else:
     uid = st.session_state.user_id
     uinfo = st.session_state.user_db.get(uid, {})
     
+    # 1. 최초 로그인 비밀번호 변경 (확인 기능 추가)
     if uinfo.get('first_login', True):
-        st.info(f"👋 {uid}님, 비밀번호를 변경해주세요.")
-        new_pw = st.text_input("새 비밀번호", type="password")
-        if st.button("변경 완료"):
-            st.session_state.user_db[uid].update({"pw": new_pw, "first_login": False})
-            if save_user_db(user_db_id, st.session_state.user_db):
-                st.success("변경되었습니다. 다시 로그인해주세요.")
-                for key in list(st.session_state.keys()): del st.session_state[key]
-                st.rerun()
-            else:
-                st.error("저장 실패. 잠시 후 다시 시도해주세요.")
+        st.info(f"👋 {uid}님, 보안을 위해 비밀번호를 변경해주세요.")
+        
+        with st.form("first_pw_change"):
+            p1 = st.text_input("새 비밀번호", type="password")
+            p2 = st.text_input("비밀번호 확인", type="password")
+            
+            if st.form_submit_button("변경 완료"):
+                if len(p1) > 0 and p1 == p2:
+                    st.session_state.user_db[uid].update({"pw": p1, "first_login": False})
+                    if save_user_db(user_db_id, st.session_state.user_db):
+                        st.success("변경되었습니다. 다시 로그인해주세요.")
+                        for k in list(st.session_state.keys()): del st.session_state[k]
+                        st.rerun()
+                    else: st.error("저장 실패. 잠시 후 다시 시도해주세요.")
+                else:
+                    st.error("비밀번호가 서로 다르거나 비어있습니다.")
+    
+    # 2. 메인 화면
     else:
-        # 정상 메인 화면
+        # [수정] 상단 여백 확보 및 환영 메시지 두 줄 처리
+        st.write("") # 추가 여백
         c1, c2 = st.columns([3, 1])
-        c1.markdown(f"### 👋 **{uid} {uinfo.get('title','')}**님")
-        if c2.button("로그아웃"): 
-            st.session_state.login_status = False
-            st.rerun()
+        with c1:
+            st.markdown(f"#### 👋 반갑습니다,")
+            st.markdown(f"### **{uid} {uinfo.get('title','')}**님")
+        with c2:
+            st.write("") # 버튼 위치 조정용
+            if st.button("로그아웃"): 
+                st.session_state.login_status = False
+                st.rerun()
+        
+        st.divider()
         
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
@@ -284,16 +281,34 @@ else:
                     me_rn = df_rn[df_rn['이름'] == uid]
                     if not me_rn.empty:
                         r = me_rn.iloc[0]
-                        # 엑셀의 '해당연도'가 적용된 날짜 표시
-                        st.success(f"📅 **{r['갱신일']}** 갱신 예정")
+                        try:
+                            renewal_str = r['갱신일']
+                            renewal_dt = pd.to_datetime(renewal_str)
+                            now = pd.to_datetime(datetime.datetime.now().strftime("%Y-%m-%d"))
+                            
+                            if renewal_dt > now: st.info(f"📅 **{renewal_str}** 갱신 예정")
+                            else: st.success(f"✅ **{renewal_str}** 갱신 완료")
+                        except: st.write(f"📅 **{r['갱신일']}**")
+
                         st.metric("추가 발생 연차", f"+{r['갱신개수']}개")
             else: st.info("갱신 정보가 없습니다.")
 
         with tab4:
             st.write("비밀번호 변경")
-            up_pw = st.text_input("새로운 비밀번호", type="password", key="change_pw")
-            if st.button("저장"):
-                st.session_state.user_db[uid]['pw'] = up_pw
-                if save_user_db(user_db_id, st.session_state.user_db):
-                    st.success("저장되었습니다.")
-                else: st.error("저장 실패")
+            # [수정] 비밀번호 확인 로직 추가
+            with st.form("change_pw_form"):
+                cp1 = st.text_input("새로운 비밀번호", type="password")
+                cp2 = st.text_input("비밀번호 확인", type="password")
+                
+                if st.form_submit_button("저장"):
+                    if len(cp1) > 0 and cp1 == cp2:
+                        st.session_state.user_db[uid]['pw'] = cp1
+                        if save_user_db(user_db_id, st.session_state.user_db):
+                            st.success("저장되었습니다.")
+                        else: st.error("저장 실패")
+                    else:
+                        st.error("비밀번호가 일치하지 않습니다.")
+        
+        if uinfo.get('role') == 'admin':
+            with st.expander("🔐 관리자 전용"):
+                st.json(st.session_state.user_db)
