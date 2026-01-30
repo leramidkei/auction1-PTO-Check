@@ -6,6 +6,7 @@ from googleapiclient.http import MediaIoBaseUpload
 import io
 import json
 import time
+import datetime
 
 # ==============================================================================
 # 1. 페이지 설정 및 모바일 최적화 UI
@@ -30,7 +31,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 및 파일 관리 (안정성 강화)
+# 2. 구글 드라이브 인증 및 파일 관리 (안정성 강화 버전)
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -54,7 +55,7 @@ def get_all_files():
     service = get_drive_service()
     if not service: return None, None, []
     
-    # 에러 발생 시 최대 2번 재시도
+    # 연결 재시도 로직 (안정성 확보)
     for _ in range(2):
         try:
             query = f"'{FOLDER_ID}' in parents and trashed=false"
@@ -95,9 +96,10 @@ def save_user_db(file_id, data):
         return False
 
 # ==============================================================================
-# 3. 데이터 파싱 로직
+# 3. 데이터 파싱 로직 (서울지사 맞춤형)
 # ==============================================================================
 
+# A. 월별 출근부 파서
 def parse_attendance(file_content):
     try:
         df_raw = pd.read_excel(file_content, header=None)
@@ -140,22 +142,50 @@ def parse_attendance(file_content):
         return pd.DataFrame(parsed)
     except: return pd.DataFrame()
 
+# B. 갱신 연차계산표 파서 (수정됨: 해당연도 반영)
 def parse_renewal_excel(file_content):
     try:
+        # 1. 파일 상단(A2)에서 '해당연도' 정보 읽기 (케이님 요청 반영)
+        df_meta = pd.read_excel(file_content, header=None, nrows=3)
+        try:
+            # A2 셀(인덱스 [1, 0])에 '2026' 같은 연도가 있다고 가정
+            target_year = int(df_meta.iloc[1, 0])
+        except:
+            # 읽기 실패 시 현재 시스템 연도 사용 (안전장치)
+            target_year = datetime.datetime.now().year
+            
+        # 2. 데이터 본문 읽기 (4번째 줄부터 헤더)
+        file_content.seek(0)
         df = pd.read_excel(file_content, header=3)
         df.columns = df.columns.astype(str).str.replace(" ", "").str.replace("\n", "")
+        
         parsed_renewal = []
         for i, row in df.iterrows():
+            # 첫 번째 컬럼(성명) 또는 '이름' 컬럼 찾기
             name = str(row.iloc[0]).replace(" ", "").strip()
+            
             if name and name != "nan" and name != "이름":
                 try:
-                    year = int(row['연']); month = int(row['월']); day = int(row['일'])
-                    renewal_date = f"{year}-{month:02d}-{day:02d}"
+                    # 입사일의 월, 일 정보 가져오기
+                    month = int(row['월'])
+                    day = int(row['일'])
+                    
+                    # [핵심] 연도는 '입사년도(row['연'])'가 아닌 '타겟연도(target_year)' 사용
+                    renewal_date = f"{target_year}-{month:02d}-{day:02d}"
+                    
+                    # '올해발생연차개수' 컬럼에서 값 추출
                     count = row.get('올해발생연차개수', 0)
-                    parsed_renewal.append({'이름': name, '갱신일': renewal_date, '갱신개수': count})
-                except: continue
+                    
+                    parsed_renewal.append({
+                        '이름': name,
+                        '갱신일': renewal_date,
+                        '갱신개수': count
+                    })
+                except:
+                    continue
         return pd.DataFrame(parsed_renewal)
-    except: return pd.DataFrame()
+    except:
+        return pd.DataFrame()
 
 @st.cache_data(ttl=600)
 def fetch_excel(file_id, is_renewal=False):
@@ -209,9 +239,7 @@ else:
             st.session_state.user_db[uid].update({"pw": new_pw, "first_login": False})
             if save_user_db(user_db_id, st.session_state.user_db):
                 st.success("변경되었습니다. 다시 로그인해주세요.")
-                # 비번 변경 후 세션 초기화하여 재로그인 유도
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
+                for key in list(st.session_state.keys()): del st.session_state[key]
                 st.rerun()
             else:
                 st.error("저장 실패. 잠시 후 다시 시도해주세요.")
@@ -256,6 +284,7 @@ else:
                     me_rn = df_rn[df_rn['이름'] == uid]
                     if not me_rn.empty:
                         r = me_rn.iloc[0]
+                        # 엑셀의 '해당연도'가 적용된 날짜 표시
                         st.success(f"📅 **{r['갱신일']}** 갱신 예정")
                         st.metric("추가 발생 연차", f"+{r['갱신개수']}개")
             else: st.info("갱신 정보가 없습니다.")
