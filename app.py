@@ -1,9 +1,9 @@
-# [Ver 0.9] 옥션원 서울지사 연차확인 시스템
+# [Ver 1.0] 옥션원 서울지사 연차확인 시스템 (Final)
 # Update: 2026-01-31
 # Changes: 
-# - 이름/직함 줄바꿈 허용 (word-break: keep-all 적용)
-# - 연차 개수 NaN(비어있음)일 경우 '∞' 아이콘으로 표시
-# - 잔여 개수와 상세 내역 박스 사이 간격(Spacer) 추가
+# - 관리자 전용 '사용자 전환(Impersonation)' 기능 추가
+# - 로그아웃 버튼 옆 관리자 모드 토글 배치
+# - UI/UX 최종 안정화
 
 import streamlit as st
 import pandas as pd
@@ -16,10 +16,10 @@ import time
 import datetime
 import re
 import os
-import math # NaN 체크용
+import math
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 0.9)
+# 1. 페이지 설정 및 CSS (Ver 1.0)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -98,20 +98,17 @@ st.markdown("""
         object-position: top center; 
     }
 
-    /* [Ver 0.9 수정] 이름 줄바꿈 허용 */
+    /* 이름 줄바꿈 허용 및 스타일 */
     .hello-text { font-size: 1rem; color: #666; margin-bottom: 4px; font-weight: 500; }
     .name-text { 
         font-size: 1.6rem; 
         color: #333; 
         font-weight: 900; 
-        line-height: 1.3; /* 줄 간격 조정 */
+        line-height: 1.3; 
         margin-bottom: 8px; 
-        word-break: keep-all; /* 단어 단위로 줄바꿈 */
+        word-break: keep-all; 
     }
-    .name-highlight { 
-        color: #5D9CEC; 
-        /* white-space: nowrap; 제거 -> 줄바꿈 허용 */
-    }
+    .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #999; }
 
     /* 5. 탭 스타일링 */
@@ -186,7 +183,6 @@ st.markdown("""
         display: inline-block; margin-bottom: 10px;
     }
     
-    /* [Ver 0.9 추가] 상세 내역 박스 위 간격 확보용 */
     .info-box-spacer {
         height: 20px;
         width: 100%;
@@ -197,7 +193,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 (기존 로직)
+# 2. 구글 드라이브 인증
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -220,9 +216,7 @@ def get_drive_service():
 def get_file_sort_key(filename):
     match = re.search(r'(\d{4})_(\d+)', filename)
     if match:
-        year = int(match.group(1))
-        month = int(match.group(2))
-        return (year, month)
+        return (int(match.group(1)), int(match.group(2)))
     return (0, 0)
 
 def get_all_files():
@@ -264,7 +258,7 @@ def save_user_db(file_id, data):
     except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 로직 (기존 로직)
+# 3. 데이터 파싱 로직
 # ==============================================================================
 def parse_attendance(file_content):
     try:
@@ -338,7 +332,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 0.9)
+# 4. 메인 로직 (Ver 1.0)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -365,45 +359,46 @@ if not st.session_state.login_status:
 
 # B. 메인 화면
 else:
-    uid = st.session_state.user_id
-    uinfo = st.session_state.user_db.get(uid, {})
+    # 1. 로그인한 실제 사용자 (admin 여부 확인용)
+    login_uid = st.session_state.user_id
+    login_uinfo = st.session_state.user_db.get(login_uid, {})
     
-    if uinfo.get('first_login', True):
-        st.info(f"👋 {uid}님, 최초 1회 비밀번호를 변경해주세요.")
-        with st.form("fc"):
-            p1 = st.text_input("새 비밀번호", type="password")
-            p2 = st.text_input("비밀번호 확인", type="password")
-            if st.form_submit_button("변경하기"):
-                if p1 == p2 and p1:
-                    st.session_state.user_db[uid].update({"pw": p1, "first_login": False})
-                    save_user_db(user_db_id, st.session_state.user_db)
-                    st.success("변경 완료. 다시 로그인해주세요.")
-                    for k in list(st.session_state.keys()): del st.session_state[k]
-                    st.rerun()
-                else: st.error("비밀번호가 일치하지 않습니다.")
-    else:
-        # [Ver 0.9] 배지
+    # 2. [Ver 1.0] 관리자 모드 로직 (사용자 전환)
+    target_uid = login_uid # 기본은 본인
+    
+    # 관리자인 경우에만 UI 표시
+    if login_uinfo.get('role') == 'admin':
+        # [Ver 1.0] 버전 배지
         st.markdown("""
         <div class="version-badge-container">
-            <div class="version-badge">Ver 0.9</div>
+            <div class="version-badge">Ver 1.0 (Admin)</div>
         </div>
         """, unsafe_allow_html=True)
-
-        # 프로필 카드
-        st.markdown(f"""
-        <div class="profile-card">
-            <div class="card-text">
-                <div class="hello-text">반갑습니다,</div>
-                <div class="name-text"><span class="name-highlight">{uid} {uinfo.get('title','')}</span>님</div>
-                <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
-            </div>
-            <div class="card-image">
-                <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png">
-            </div>
+        
+        # 관리자 컨트롤 패널
+        c_logout, c_admin = st.columns([1, 2])
+        
+        with c_logout:
+            st.markdown('<div class="logout-btn-area">', unsafe_allow_html=True)
+            if st.button("로그아웃"): 
+                st.session_state.login_status = False
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with c_admin:
+            # 관리자 전용 체크박스 & 콤보박스
+            is_admin_mode = st.checkbox("🔧 관리자 모드 (사용자 전환)", value=False)
+            if is_admin_mode:
+                all_users = list(st.session_state.user_db.keys())
+                target_uid = st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), label_visibility="collapsed")
+    else:
+        # 일반 사용자 화면
+        st.markdown("""
+        <div class="version-badge-container">
+            <div class="version-badge">Ver 1.0</div>
         </div>
         """, unsafe_allow_html=True)
-
-        # 로그아웃 버튼
+        
         c_logout, _ = st.columns([1, 2])
         with c_logout:
             st.markdown('<div class="logout-btn-area">', unsafe_allow_html=True)
@@ -411,16 +406,49 @@ else:
                 st.session_state.login_status = False
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
+
+    # 3. 데이터 기준 설정 (target_uid 기준)
+    # 이제부터 모든 데이터(uinfo, 연차 등)는 선택된 사용자(target_uid) 기준으로 가져옴
+    uinfo = st.session_state.user_db.get(target_uid, {})
+    
+    # 4. 초기 비번 변경 로직 (선택된 사용자 기준)
+    if uinfo.get('first_login', True):
+        st.info(f"👋 {target_uid}님, 최초 1회 비밀번호를 변경해주세요.")
+        with st.form("fc"):
+            p1 = st.text_input("새 비밀번호", type="password")
+            p2 = st.text_input("비밀번호 확인", type="password")
+            if st.form_submit_button("변경하기"):
+                if p1 == p2 and p1:
+                    st.session_state.user_db[target_uid].update({"pw": p1, "first_login": False})
+                    save_user_db(user_db_id, st.session_state.user_db)
+                    st.success("변경 완료. 다시 로그인해주세요.")
+                    # 본인 비번 변경 시에만 로그아웃 처리
+                    if target_uid == login_uid:
+                        for k in list(st.session_state.keys()): del st.session_state[k]
+                    st.rerun()
+                else: st.error("비밀번호가 일치하지 않습니다.")
+    else:
+        # 프로필 카드 (선택된 사용자 정보 표시)
+        st.markdown(f"""
+        <div class="profile-card">
+            <div class="card-text">
+                <div class="hello-text">반갑습니다,</div>
+                <div class="name-text"><span class="name-highlight">{target_uid} {uinfo.get('title','')}</span>님</div>
+                <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
+            </div>
+            <div class="card-image">
+                <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png">
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
         def tab_header(text):
             st.markdown(f'<div class="tab-section-header">{text}</div>', unsafe_allow_html=True)
 
-        # [Ver 0.9 추가] NaN을 '∞'로 변환하는 함수
         def display_remain(val):
-            if pd.isna(val) or math.isnan(val):
-                return "∞"
+            if pd.isna(val) or math.isnan(val): return "∞"
             return f"{val}개"
 
         with tab1:
@@ -436,19 +464,19 @@ else:
                 try:
                     file_month = int(re.search(r'(\d+)월', latest_file['name']).group(1))
                     current_month = datetime.datetime.now().month
-                    if current_month > file_month and uid in st.session_state.realtime_data:
-                        rt_info = st.session_state.realtime_data[uid]
+                    # 실시간 데이터도 선택된 사용자 기준
+                    if current_month > file_month and target_uid in st.session_state.realtime_data:
+                        rt_info = st.session_state.realtime_data[target_uid]
                         realtime_usage = rt_info.get('used', 0.0)
                         realtime_msg = rt_info.get('details', '')
                         realtime_applied = True
                 except: pass
 
                 if not df.empty:
-                    me = df[df['이름'] == uid]
+                    me = df[df['이름'] == target_uid]
                     if not me.empty:
                         excel_remain = float(me.iloc[0]['잔여'])
                         
-                        # NaN 체크 및 계산
                         if pd.isna(excel_remain):
                             final_str = "∞"
                         else:
@@ -462,7 +490,6 @@ else:
                         st.metric("현재 예상 잔여 연차", final_str)
                         st.caption(f"기준 파일: {latest_file['name']}")
                         
-                        # [Ver 0.9] 상세 내역 박스와의 겹침 방지용 투명 벽
                         st.markdown('<div class="info-box-spacer"></div>', unsafe_allow_html=True)
                         
                         if realtime_msg: st.info(f"📝 **추가 내역:** {realtime_msg}")
@@ -478,18 +505,16 @@ else:
                 sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
                 if sel:
                     df = fetch_excel(opts[sel])
-                    me = df[df['이름'] == uid]
+                    me = df[df['이름'] == target_uid]
                     if not me.empty:
                         r = me.iloc[0]
                         c1, c2 = st.columns(2)
                         
-                        # NaN 처리
                         remain_val = display_remain(float(r['잔여']))
                         
                         c1.metric("사용", f"{r['사용개수']}개")
                         c2.metric("잔여", remain_val)
                         
-                        # [Ver 0.9] 겹침 방지용 투명 벽
                         st.markdown('<div class="info-box-spacer"></div>', unsafe_allow_html=True)
                         
                         st.info(f"내역: {r['사용내역']}")
@@ -500,7 +525,7 @@ else:
             tab_header("연차 갱신 및 발생 내역") 
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
-                me = df[df['이름'] == uid]
+                me = df[df['이름'] == target_uid]
                 if not me.empty:
                     r = me.iloc[0]
                     try:
@@ -516,14 +541,16 @@ else:
 
         with tab4:
             tab_header("비밀번호 변경") 
+            # 관리자가 다른 사람의 비밀번호도 변경 가능하게 함 (주의 필요)
+            st.caption(f"현재 선택된 사용자: **{target_uid}**")
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
                 p2 = st.text_input("확인", type="password")
                 if st.form_submit_button("저장"):
                     if p1 == p2 and p1:
-                        st.session_state.user_db[uid]['pw'] = p1
+                        st.session_state.user_db[target_uid].update({"pw": p1, "first_login": False})
                         save_user_db(user_db_id, st.session_state.user_db)
-                        st.success("저장되었습니다.")
+                        st.success(f"{target_uid}님의 비밀번호가 변경되었습니다.")
                     else: st.error("비밀번호가 일치하지 않습니다.")
             
             st.markdown("<br><br>", unsafe_allow_html=True)
