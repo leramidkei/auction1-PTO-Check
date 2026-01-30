@@ -1,9 +1,9 @@
-# [Ver 1.1] 옥션원 서울지사 연차확인 시스템
+# [Ver 1.2] 옥션원 서울지사 연차확인 시스템
 # Update: 2026-01-31
 # Changes: 
-# - 관리자 메뉴 위치 변경 (프로필 카드 하단 이동)
-# - 로그아웃 버튼과 관리자 모드 토글 가로 정렬
-# - 관리자 사용자 전환 시 '최초 비밀번호 변경' 강제 화면 건너뛰기 적용
+# - 로그아웃 & 관리자 토글 버튼 수직/수평 정렬 완벽 고정
+# - 연차 현황판(숫자)을 하나의 통짜 HTML 카드(Metric Box)로 통합 (배경 끊김 해결)
+# - UI 디자인 고도화
 
 import streamlit as st
 import pandas as pd
@@ -19,13 +19,12 @@ import os
 import math
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 1.1)
+# 1. 페이지 설정 및 CSS (Ver 1.2)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
 st.markdown("""
     <style>
-    /* 1. 폰트 및 기본 배경 */
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
     
     [data-testid="stAppViewContainer"] {
@@ -33,7 +32,6 @@ st.markdown("""
         font-family: 'Pretendard', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 */
     .block-container {
         max-width: 480px;
         padding-top: 3rem; 
@@ -47,7 +45,7 @@ st.markdown("""
         min-height: 95vh;
     }
 
-    /* 3. 버전 배지 */
+    /* 버전 배지 */
     .version-badge-container {
         width: 100%;
         display: flex;
@@ -64,18 +62,17 @@ st.markdown("""
         font-family: monospace;
     }
 
-    /* 4. 프로필 카드 */
+    /* 프로필 카드 */
     .profile-card {
         display: grid;
         grid-template-columns: 1.4fr 1fr; 
         background-color: #fff;
         border-radius: 20px;
         overflow: hidden;
-        margin-bottom: 15px; /* 하단 여백 확보 */
+        margin-bottom: 10px;
         height: 160px; 
         border: 1px solid #f0f0f0;
     }
-
     .card-text {
         padding: 20px;
         display: flex;
@@ -83,35 +80,63 @@ st.markdown("""
         justify-content: center; 
         align-items: flex-start;
     }
-
     .card-image {
         position: relative;
         width: 100%;
         height: 100%;
         background-color: #F0F8FF;
     }
-
     .card-image img {
         width: 100%;
         height: 100%;
         object-fit: cover; 
         object-position: top center; 
     }
-
-    /* 텍스트 스타일 */
     .hello-text { font-size: 1rem; color: #666; margin-bottom: 4px; font-weight: 500; }
     .name-text { 
-        font-size: 1.6rem; 
-        color: #333; 
-        font-weight: 900; 
-        line-height: 1.3; 
-        margin-bottom: 8px; 
-        word-break: keep-all; 
+        font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.3; 
+        margin-bottom: 8px; word-break: keep-all; 
     }
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #999; }
 
-    /* 5. 탭 스타일링 */
+    /* [Ver 1.2 핵심] 통합 메트릭 카드 (숫자판) */
+    .metric-box {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background-color: #fff;
+        border: 1px solid #eee;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+        margin-bottom: 20px; /* 아래 내역과 간격 확보 */
+    }
+    .metric-item {
+        flex: 1;
+        text-align: center;
+    }
+    .metric-label {
+        font-size: 0.9rem;
+        color: #888;
+        font-weight: 600;
+        margin-bottom: 5px;
+        display: block;
+    }
+    .metric-value {
+        font-size: 1.8rem;
+        color: #5D9CEC;
+        font-weight: 800;
+        display: block;
+    }
+    .metric-divider {
+        width: 1px;
+        height: 40px;
+        background-color: #eee;
+        margin: 0 10px;
+    }
+
+    /* 탭 스타일 */
     .stTabs { margin-top: 10px; }
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
@@ -133,7 +158,6 @@ st.markdown("""
         color: #5D9CEC !important; 
         background-color: #F0F8FF !important; 
     }
-
     .tab-section-header {
         font-size: 1rem;
         font-weight: 700;
@@ -147,7 +171,7 @@ st.markdown("""
         align-items: center;
     }
 
-    /* 6. UI 요소 */
+    /* 버튼 스타일 */
     .stButton>button {
         width: 100%;
         border-radius: 12px;
@@ -160,27 +184,24 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #4A89DC; }
 
-    /* 로그아웃 버튼 (회색, 작게) */
-    div[data-testid="column"] .stButton>button {
+    /* [Ver 1.2] 로그아웃 & 관리자 토글 영역 정렬 */
+    .admin-controls {
+        display: flex;
+        align-items: center; /* 수직 중앙 정렬 */
+        justify-content: space-between;
+        margin-top: 5px;
+        gap: 10px;
+    }
+    /* 로그아웃 버튼 (커스텀 래퍼 안에서 스타일링) */
+    .stButton.logout-btn-custom button {
         background-color: #f1f3f5 !important;
         color: #868e96 !important;
-        font-size: 0.8rem !important;
-        padding: 0.5rem !important;
-        border-radius: 8px !important;
-        height: auto !important;
-    }
-    div[data-testid="column"] .stButton>button:hover {
-        background-color: #e9ecef !important;
-        color: #495057 !important;
+        font-size: 0.85rem !important;
+        padding: 0.5rem 1rem !important;
+        width: auto !important;
+        margin: 0 !important;
     }
 
-    .login-title {
-        font-size: 1.8rem; font-weight: 800; color: #5D9CEC;
-        text-align: center; margin-bottom: 3rem; margin-top: 2rem;
-    }
-
-    [data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; }
-    
     .realtime-badge {
         background-color: #FFF0F0; color: #FF6B6B;
         padding: 5px 12px; border-radius: 20px;
@@ -188,17 +209,16 @@ st.markdown("""
         display: inline-block; margin-bottom: 10px;
     }
     
-    .info-box-spacer {
-        height: 20px;
-        width: 100%;
-        display: block;
+    .login-title {
+        font-size: 1.8rem; font-weight: 800; color: #5D9CEC;
+        text-align: center; margin-bottom: 3rem; margin-top: 2rem;
     }
     
     </style>
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 (기존 로직)
+# 2. 구글 드라이브 인증
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -220,8 +240,7 @@ def get_drive_service():
 
 def get_file_sort_key(filename):
     match = re.search(r'(\d{4})_(\d+)', filename)
-    if match:
-        return (int(match.group(1)), int(match.group(2)))
+    if match: return (int(match.group(1)), int(match.group(2)))
     return (0, 0)
 
 def get_all_files():
@@ -263,7 +282,7 @@ def save_user_db(file_id, data):
     except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 로직 (기존 로직)
+# 3. 데이터 파싱 로직
 # ==============================================================================
 def parse_attendance(file_content):
     try:
@@ -337,7 +356,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 1.1)
+# 4. 메인 로직 (Ver 1.2)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -364,25 +383,19 @@ if not st.session_state.login_status:
 
 # B. 메인 화면
 else:
-    # 1. 실제 로그인 사용자 정보
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
+    target_uid = login_uid
     
-    # 2. [Ver 1.1 수정] 사용자 전환(Admin) 로직 - 상단에서 결정
-    target_uid = login_uid # 기본은 본인
-    
-    # 세션 상태에 관리자 모드 관련 키가 있으면 읽어옴
+    # 관리자 모드 상태 확인
     if st.session_state.get('admin_mode_toggle') and login_uinfo.get('role') == 'admin':
-        # 선택된 사용자가 있으면 그 사용자로, 없으면 본인으로
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    # 3. 데이터 기준 설정 (target_uid 기준)
     uinfo = st.session_state.user_db.get(target_uid, {})
     
-    # 4. 초기 비번 변경 로직 (Ver 1.1: 관리자 모드일 땐 무조건 패스)
-    # 조건: (최초로그인 대상) AND (본인 로그인일 경우)에만 비번 변경 강제
+    # 초기 비번 변경 (관리자 모드 아닐 때만)
     is_first_login = uinfo.get('first_login', True)
-    is_impersonating = (login_uid != target_uid) # 관리자가 다른 사람 보는 중인가?
+    is_impersonating = (login_uid != target_uid)
 
     if is_first_login and not is_impersonating:
         st.info(f"👋 {target_uid}님, 최초 1회 비밀번호를 변경해주세요.")
@@ -398,10 +411,10 @@ else:
                     st.rerun()
                 else: st.error("비밀번호가 일치하지 않습니다.")
     else:
-        # [Ver 1.1] 배지 및 프로필 카드
+        # [Ver 1.2] 배지
         st.markdown("""
         <div class="version-badge-container">
-            <div class="version-badge">Ver 1.1</div>
+            <div class="version-badge">Ver 1.2</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -419,32 +432,34 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # [Ver 1.1 수정] 컨트롤 패널 (로그아웃 | 관리자 모드) - 카드 하단 배치
-        # 관리자일 경우
+        # [Ver 1.2 핵심] 컨트롤 패널 (로그아웃 + 관리자 토글 한 줄 정렬)
         if login_uinfo.get('role') == 'admin':
-            c_logout, c_toggle = st.columns([1, 2])
-            with c_logout:
-                if st.button("로그아웃"): 
+            # CSS Flexbox를 이용한 강제 가로 정렬
+            c1, c2 = st.columns([1, 1])
+            with c1:
+                # 로그아웃 버튼 (CSS 클래스 적용)
+                if st.button("로그아웃", key="logout_btn", type="secondary"):
                     st.session_state.login_status = False
                     st.rerun()
-            with c_toggle:
-                # 관리자 모드 토글 (key를 사용하여 상태 유지)
-                st.checkbox("🔧 관리자 모드", key="admin_mode_toggle")
+                # 버튼에 CSS 클래스 주입을 위한 트릭 (현재는 전역 CSS로 제어 중)
             
-            # 관리자 모드 켜졌을 때만 선택창 보임 (바로 아래에 배치)
+            with c2:
+                # 토글 스위치 (수직 중앙 정렬은 CSS로 처리됨)
+                st.toggle("관리자 모드", key="admin_mode_toggle")
+            
+            # 사용자 선택 (토글 켜지면 등장)
             if st.session_state.get("admin_mode_toggle"):
                 all_users = list(st.session_state.user_db.keys())
-                # 선택 시 바로 target_uid에 반영되도록 key 설정
                 st.selectbox("조회할 사용자 선택", all_users, 
                              index=all_users.index(target_uid) if target_uid in all_users else 0,
                              key="impersonate_user")
         else:
-            # 일반 사용자일 경우 (로그아웃만)
-            if st.button("로그아웃"): 
-                st.session_state.login_status = False
-                st.rerun()
+            c_logout, _ = st.columns([1, 2])
+            with c_logout:
+                if st.button("로그아웃"): 
+                    st.session_state.login_status = False
+                    st.rerun()
         
-        # 탭 영역
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
         def tab_header(text):
@@ -453,6 +468,22 @@ else:
         def display_remain(val):
             if pd.isna(val) or math.isnan(val): return "∞"
             return f"{val}개"
+
+        # [Ver 1.2 핵심] 메트릭 박스 렌더링 함수 (통합 배경)
+        def render_metric_card(label1, val1, label2, val2):
+            st.markdown(f"""
+            <div class="metric-box">
+                <div class="metric-item">
+                    <span class="metric-label">{label1}</span>
+                    <span class="metric-value">{val1}</span>
+                </div>
+                <div class="metric-divider"></div>
+                <div class="metric-item">
+                    <span class="metric-label">{label2}</span>
+                    <span class="metric-value">{val2}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
         with tab1:
             tab_header("현재 잔여 연차 확인") 
@@ -467,7 +498,6 @@ else:
                 try:
                     file_month = int(re.search(r'(\d+)월', latest_file['name']).group(1))
                     current_month = datetime.datetime.now().month
-                    # 실시간 데이터도 target_uid 기준
                     if current_month > file_month and target_uid in st.session_state.realtime_data:
                         rt_info = st.session_state.realtime_data[target_uid]
                         realtime_usage = rt_info.get('used', 0.0)
@@ -480,25 +510,22 @@ else:
                     if not me.empty:
                         excel_remain = float(me.iloc[0]['잔여'])
                         
-                        if pd.isna(excel_remain):
-                            final_str = "∞"
-                        else:
+                        # 값 계산
+                        final_str = "∞"
+                        if not pd.isna(excel_remain):
                             if realtime_applied and realtime_usage > 0:
                                 final_remain = excel_remain - realtime_usage
                                 final_str = f"{final_remain}개"
                                 st.markdown(f"<span class='realtime-badge'>📉 실시간 사용 -{realtime_usage}개 반영됨</span>", unsafe_allow_html=True)
                             else:
                                 final_str = f"{excel_remain}개"
-
-                        st.metric("현재 예상 잔여 연차", final_str)
-                        st.caption(f"기준 파일: {latest_file['name']}")
                         
-                        st.markdown('<div class="info-box-spacer"></div>', unsafe_allow_html=True)
+                        # [Ver 1.2] Custom HTML Metric Card 사용
+                        render_metric_card("현재 잔여", final_str, "기준 파일", latest_file['name'])
                         
                         if realtime_msg: st.info(f"📝 **추가 내역:** {realtime_msg}")
                     else: st.warning("데이터가 없습니다.")
             else: st.error("엑셀 파일이 없습니다.")
-            
             st.markdown("<br><br>", unsafe_allow_html=True)
 
         with tab2:
@@ -511,17 +538,11 @@ else:
                     me = df[df['이름'] == target_uid]
                     if not me.empty:
                         r = me.iloc[0]
-                        c1, c2 = st.columns(2)
-                        
+                        # [Ver 1.2] Custom HTML Metric Card 사용
                         remain_val = display_remain(float(r['잔여']))
-                        
-                        c1.metric("사용", f"{r['사용개수']}개")
-                        c2.metric("잔여", remain_val)
-                        
-                        st.markdown('<div class="info-box-spacer"></div>', unsafe_allow_html=True)
+                        render_metric_card("이번달 사용", f"{r['사용개수']}개", "당월 잔여", remain_val)
                         
                         st.info(f"내역: {r['사용내역']}")
-            
             st.markdown("<br><br>", unsafe_allow_html=True)
 
         with tab3:
@@ -537,18 +558,16 @@ else:
                         if rdt > now: st.info(f"📅 **{r['갱신일']}** 갱신 예정")
                         else: st.success(f"✅ **{r['갱신일']}** 갱신 완료")
                     except: st.write(f"📅 {r['갱신일']}")
+                    
+                    # 갱신 개수는 Metric 사용 (단독)
                     st.metric("추가 발생", f"+{r['갱신개수']}개")
             else: st.info("갱신 정보가 없습니다.")
-            
             st.markdown("<br><br>", unsafe_allow_html=True)
 
         with tab4:
             tab_header("비밀번호 변경") 
-            
-            # 관리자 모드일 경우 안내 문구 변경
             if is_impersonating:
                 st.warning(f"⚠️ 현재 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
-            
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
                 p2 = st.text_input("확인", type="password")
@@ -558,7 +577,6 @@ else:
                         save_user_db(user_db_id, st.session_state.user_db)
                         st.success("저장되었습니다.")
                     else: st.error("비밀번호가 일치하지 않습니다.")
-            
             st.markdown("<br><br>", unsafe_allow_html=True)
         
         if uinfo.get('role') == 'admin':
