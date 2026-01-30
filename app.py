@@ -8,166 +8,142 @@ import json
 import time
 import datetime
 import re
-import os # 이미지 파일 확인을 위해 추가
+import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (파스텔톤 UI & 모바일 최적화)
+# 1. 페이지 설정 및 CSS (파스텔톤 UI & 모바일 최적화 & 캐릭터 크기 수정)
 # ==============================================================================
-st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸") # 아이콘 추가
+st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
 st.markdown("""
     <style>
-    /* 1. 전체 배경: 화사한 파스텔 블루/핑크 그라데이션 & 폰트 설정 */
+    /* 1. 전체 배경 및 폰트 */
     [data-testid="stAppViewContainer"] {
-        background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); /* 아주 연한 그라데이션 */
-        background-color: #F0F8FF; /* 기본 배경색 (AliceBlue) */
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif; /* 깔끔한 폰트 적용 */
-        color: #4A4A4A; /* 기본 글자색 */
+        background-color: #FDFDFD; /* 아주 밝은 화이트톤 */
+        font-family: 'Pretendard', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 박스 디자인 (파스텔톤 & 둥근 모서리 & 그림자) */
+    /* 2. 메인 컨테이너 (상단 여백 문제 해결) */
     .block-container {
-        max-width: 480px; /* 너비 약간 늘림 */
-        padding: 3rem 1.5rem 2rem 1.5rem; /* 패딩 조정 */
+        max-width: 480px;
+        padding-top: 5rem; /* 데스크탑 상단 여백 */
+        padding-bottom: 2rem;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
         margin: auto;
         background-color: #ffffff;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08); /* 더 부드러운 그림자 */
-        border-radius: 20px; /* 둥근 모서리 강조 */
-        border: 1px solid #E1E1E1; /* 아주 연한 테두리 */
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        border-radius: 20px;
+        min-height: 90vh;
     }
-    /* 모바일 환경 최적화 */
+    
+    /* [수정] 모바일 상단 잘림 해결을 위해 padding-top 대폭 증가 */
     @media (max-width: 480px) { 
         .block-container { 
             max-width: 100%; 
             box-shadow: none; 
-            padding-top: 2rem;
+            padding-top: 6rem !important; /* 여기를 늘렸습니다 (4rem -> 6rem) */
+            padding-left: 1rem;
+            padding-right: 1rem;
             border-radius: 0;
-            border: none;
         } 
-        /* 모바일에서 폰트 크기 자동 조절 */
-        html { font-size: 14px; } 
     }
 
-    /* 3. 로그인 타이틀 스타일 (두 줄, 가운데 정렬, 파스텔톤) */
+    /* 3. 로그인 타이틀 (두 줄, 파스텔톤) */
     .login-title {
         font-size: 1.8rem;
         font-weight: 800;
         color: #5D9CEC; /* 파스텔 블루 */
         text-align: center;
-        line-height: 1.4;
-        margin-bottom: 1.5rem;
-    }
-    /* 모바일에서 타이틀 폰트 크기 줄임 */
-    @media (max-width: 480px) {
-        .login-title {
-            font-size: 1.5rem; 
-        }
+        line-height: 1.3;
+        margin-bottom: 2rem;
+        margin-top: 1rem;
     }
 
-    /* 4. 버튼 스타일 (파스텔 블루 & 둥근 모서리) */
+    /* 4. 버튼 스타일 */
     .stButton>button {
         width: 100%;
         border-radius: 12px;
         font-weight: bold;
-        background-color: #5D9CEC; /* 파스텔 블루 */
+        background-color: #5D9CEC; 
         color: white;
         border: none;
-        padding: 0.8rem 1rem;
-        transition: background-color 0.3s; /* 부드러운 호버 효과 */
+        padding: 0.8rem 0;
+        font-size: 1rem;
     }
-    .stButton>button:hover {
-        background-color: #4A89DC; /* 호버 시 약간 진해짐 */
-        box-shadow: 0 4px 12px rgba(93, 156, 236, 0.3);
-    }
+    .stButton>button:hover { background-color: #4A89DC; }
 
-    /* 5. 메트릭(숫자) 스타일 (파스텔톤) */
+    /* 5. 메트릭(숫자) 스타일 */
     [data-testid="stMetricValue"] {
-        font-size: 2.2rem;
+        font-size: 2rem;
         font-weight: 800;
-        color: #5D9CEC; /* 파스텔 블루 */
+        color: #5D9CEC; 
     }
     [data-testid="stMetricLabel"] {
-        font-size: 1rem;
+        font-size: 0.9rem;
         color: #888;
-        font-weight: 600;
     }
 
-    /* 6. 실시간 배지 스타일 (파스텔 옐로우/레드) */
-    .realtime-badge {
-        background-color: #FFF0F0; /* 아주 연한 파스텔 레드 배경 */
-        color: #FF6B6B; /* 파스텔 레드 글자 */
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-size: 0.85rem;
-        font-weight: bold;
-        margin-bottom: 8px;
-        display: inline-block;
-        box-shadow: 0 2px 4px rgba(255, 107, 107, 0.1);
-    }
-
-    /* 7. 탭 스타일 (파스텔톤 적용) */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background-color: #f0f2f5;
-        padding: 8px;
-        border-radius: 16px;
-    }
-    .stTabs [data-baseweb="tab"] {
-        height: 40px;
-        border-radius: 12px;
-        color: #888;
-        font-weight: 600;
-        padding: 0 16px;
-    }
-    .stTabs [aria-selected="true"] {
-        background-color: #ffffff !important;
-        color: #5D9CEC !important; /* 파스텔 블루 */
-        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-
-    /* 8. 기타 요소 스타일 */
-    .stTextInput>div>div>input {
-        border-radius: 10px;
-        border: 1px solid #E1E1E1;
-        padding: 0.8rem;
-    }
-    .stTextInput>div>div>input:focus {
-        border-color: #5D9CEC;
-        box-shadow: 0 0 0 2px rgba(93, 156, 236, 0.2);
-    }
+    /* 6. 헤더 영역 (인사말 + 캐릭터) 스타일 [대폭 수정] */
     .greeting-container {
         display: flex;
-        align-items: center;
         justify-content: space-between;
+        align-items: center; /* 수직 중앙 정렬 */
         margin-bottom: 1.5rem;
+        gap: 10px; /* 텍스트와 이미지 사이 간격 */
     }
     .greeting-text {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
         font-weight: bold;
         line-height: 1.4;
+        color: #333;
+        flex: 1; /* 남은 공간 차지 */
     }
     .user-name-highlight {
         color: #5D9CEC;
-        font-size: 1.5rem;
+        font-size: 1.4rem;
         font-weight: 900;
     }
+    
+    /* [수정] 캐릭터 이미지 크기 키움 */
     .character-img {
-        width: 100px;
+        width: 130px; /* 기존 100px -> 130px로 확대 */
+        min-width: 130px; /* 화면이 줄어도 찌그러지지 않게 고정 */
         height: auto;
         object-fit: contain;
-        /* filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.1)); 캐릭터 그림자 추가 (선택) */
     }
-    /* 모바일에서 캐릭터 이미지 크기 조절 */
-    @media (max-width: 480px) {
-        .character-img { width: 80px; }
+    
+    /* 모바일 미세 조정 */
+    @media (max-width: 400px) {
+        .character-img { 
+            width: 110px; /* 아주 작은 폰에서는 살짝 줄임 */
+            min-width: 110px;
+        }
         .greeting-text { font-size: 1.1rem; }
-        .user-name-highlight { font-size: 1.3rem; }
     }
+
+    /* 7. 배지 스타일 */
+    .realtime-badge {
+        background-color: #FFF0F0;
+        color: #FF6B6B;
+        padding: 4px 8px;
+        border-radius: 8px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+        display: inline-block;
+    }
+    
+    /* 탭 스타일 */
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
+    .stTabs [data-baseweb="tab"] { height: 45px; border-radius: 10px; font-weight: 600; }
+    .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
+
     </style>
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 및 파일 관리 (기존 코드 유지)
+# 2. 구글 드라이브 인증 (기존 유지)
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -203,7 +179,7 @@ def get_all_files():
             for f in all_files:
                 name = f['name']
                 if name == "user_db.json": user_db_id = f['id']
-                elif name == "realtime_usage.json": realtime_id = f['id'] # 실시간 파일 식별
+                elif name == "realtime_usage.json": realtime_id = f['id']
                 elif "renewal" in name or "갱신" in name: renewal_id = f['id']
                 elif ".xlsx" in name: monthly_files.append(f)
             
@@ -232,7 +208,7 @@ def save_user_db(file_id, data):
     except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 로직 (기존 코드 유지)
+# 3. 데이터 파싱 (기존 유지)
 # ==============================================================================
 def parse_attendance(file_content):
     try:
@@ -307,7 +283,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (UI 및 캐릭터 반영)
+# 4. 메인 로직
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -317,16 +293,15 @@ if not user_db_id:
 
 if 'user_db' not in st.session_state:
     st.session_state.user_db = load_json_file(user_db_id)
-    # 실시간 데이터 로드
     st.session_state.realtime_data = load_json_file(realtime_id) if realtime_id else {}
 
 if 'login_status' not in st.session_state: st.session_state.login_status = False
 
 if not st.session_state.login_status:
-    # [UI 수정] 로그인 타이틀: 두 줄, 가운데 정렬, 파스텔톤 적용
+    # [수정] 로그인 타이틀 두 줄 처리 및 CSS 적용
     st.markdown('<div class="login-title">옥션원 서울지사<br>연차확인</div>', unsafe_allow_html=True)
     with st.form("login"):
-        uid = st.text_input("아이디", placeholder="예: 김상호").replace(" ", "") # 플레이스홀더 추가
+        uid = st.text_input("아이디").replace(" ", "")
         upw = st.text_input("비밀번호", type="password")
         if st.form_submit_button("로그인"):
             if uid in st.session_state.user_db and st.session_state.user_db[uid]['pw'] == upw:
@@ -350,45 +325,22 @@ else:
                     st.rerun()
                 else: st.error("비밀번호 불일치")
     else:
-        # [UI 수정] 메인 화면 헤더 (캐릭터 이미지 + 파스텔톤 인사말)
-        # character.png 파일이 깃허브 저장소 루트에 있어야 합니다.
-        
-        # Flexbox를 사용한 레이아웃 (인사말 왼쪽, 캐릭터 오른쪽)
+        # [수정] 캐릭터 크기 확대 & 레이아웃 안정화 (min-width 적용)
         header_html = f"""
         <div class="greeting-container">
             <div class="greeting-text">
                 반갑습니다,<br>
                 <span class="user-name-highlight">{uid} {uinfo.get('title','')}</span>님 👋<br>
-                <span style="font-size: 1rem; color: #888; font-weight: normal;">오늘도 좋은 하루 되세요.</span>
+                <span style="font-size: 0.95rem; color: #888; font-weight: normal;">오늘도 좋은 하루 되세요.</span>
             </div>
             <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png" class="character-img" alt="캐릭터">
         </div>
         """
-        # [중요] 위 img src 주소를 본인의 깃허브 저장소 주소로 꼭 맞춰주세요!
-        # 만약 로컬 테스트 중이라면 st.image("character.png")를 사용해도 됩니다.
+        st.markdown(header_html, unsafe_allow_html=True)
         
-        # 깃허브 배포 환경을 고려하여 raw.githubusercontent.com 주소 사용을 권장합니다.
-        # 만약 로컬에서만 테스트한다면 아래 코드를 주석 해제하고 위 header_html을 주석 처리하세요.
+        # 로그아웃 버튼
+        if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
         
-        # c1, c2 = st.columns([3, 1])
-        # with c1: 
-        #     st.markdown(f"""
-        #     <div class="greeting-text">
-        #         반갑습니다,<br>
-        #         <span class="user-name-highlight">{uid} {uinfo.get('title','')}</span>님 👋<br>
-        #         <span style="font-size: 1rem; color: #888; font-weight: normal;">오늘도 좋은 하루 되세요.</span>
-        #     </div>
-        #     """, unsafe_allow_html=True)
-        # with c2:
-        #     if os.path.exists("character.png"):
-        #         st.image("character.png", width=100)
-        #     else:
-        #         st.write("😎") # 이미지 없을 시 대체
-        
-        st.markdown(header_html, unsafe_allow_html=True) # Flexbox 레이아웃 적용
-
-        st.write("") # 간격 추가
-        if st.button("로그아웃", key="logout_btn"): st.session_state.login_status = False; st.rerun()
         st.divider()
         
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
@@ -398,7 +350,6 @@ else:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
                 
-                # [핵심] 실시간 데이터 반영 로직 (기존 코드 유지)
                 realtime_applied = False
                 realtime_usage = 0.0
                 realtime_msg = ""
@@ -421,7 +372,6 @@ else:
                         
                         if realtime_applied and realtime_usage > 0:
                             final_remain = excel_remain - realtime_usage
-                            # [UI 수정] 뱃지 스타일 적용 (파스텔 레드)
                             st.markdown(f"<span class='realtime-badge'>📉 실시간 사용 -{realtime_usage}개 반영됨</span>", unsafe_allow_html=True)
                             st.metric("현재 예상 잔여 연차", f"{final_remain}개")
                             st.caption(f"기준: {latest_file['name']} 잔여 ({excel_remain}) - 이번달 사용 ({realtime_usage})")
@@ -475,4 +425,3 @@ else:
         
         if uinfo.get('role') == 'admin':
             with st.expander("🔐 관리자"): st.json(st.session_state.user_db)
-
