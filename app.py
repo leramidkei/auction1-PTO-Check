@@ -1,3 +1,11 @@
+# [Ver 0.5] 옥션원 서울지사 연차확인 시스템
+# Update: 2026-01-30
+# Changes: 
+# - UI 구조 전면 개편 (CSS Grid 적용)
+# - 모바일 레이아웃 강제 고정 (Stacking 방지)
+# - 탭 상단 높이 정밀 보정
+# - 버전 정보 표기 추가
+
 import streamlit as st
 import pandas as pd
 from google.oauth2 import service_account
@@ -11,94 +19,122 @@ import re
 import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (테이블 레이아웃 & 탭 높이 고정)
+# 1. 페이지 설정 및 New CSS Architecture (Ver 0.5)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
 st.markdown("""
     <style>
-    /* 1. 기본 폰트 및 배경 */
+    /* 1. 폰트 및 기본 배경 */
+    @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+    
     [data-testid="stAppViewContainer"] {
-        background-color: #FDFDFD;
-        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+        background-color: #F8F9FA;
+        font-family: 'Pretendard', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 */
+    /* 2. 메인 컨테이너 (카드 형태) */
     .block-container {
         max-width: 480px;
-        padding-top: 4rem;
+        padding-top: 3rem;
         padding-bottom: 2rem;
         padding-left: 1.2rem;
         padding-right: 1.2rem;
         margin: auto;
         background-color: #ffffff;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.08);
         border-radius: 24px;
         min-height: 95vh;
-    }
-    @media (max-width: 480px) { 
-        .block-container { 
-            max-width: 100%; 
-            box-shadow: none; 
-            padding-top: 3rem !important;
-            padding-left: 1rem;
-            padding-right: 1rem;
-            border-radius: 0;
-        } 
+        position: relative; /* 버전 배지 위치 기준 */
     }
 
-    /* 3. 로그인 타이틀 */
-    .login-title {
-        font-size: 1.8rem;
-        font-weight: 800;
-        color: #5D9CEC;
-        text-align: center;
-        line-height: 1.35;
-        margin-bottom: 2.5rem;
-        margin-top: 2rem;
+    /* 3. [Ver 0.5] 우측 상단 버전 배지 */
+    .version-badge {
+        position: absolute;
+        top: 15px;
+        right: 20px;
+        background-color: #eee;
+        color: #888;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: bold;
+        z-index: 100;
     }
 
-    /* 4. [핵심] HTML 테이블 스타일 (이미지 꽉 채우기) */
-    .header-table {
+    /* 4. [핵심] 프로필 카드 Grid 레이아웃 (Streamlit 컬럼 미사용) */
+    .profile-card {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr; /* 텍스트(1.4) : 이미지(1) 비율 고정 */
+        background-color: #fff;
+        border-radius: 20px;
+        overflow: hidden;
+        margin-bottom: 10px;
+        height: 160px; /* 높이 강제 고정 (이미지 확보용) */
+        border: 1px solid #f0f0f0;
+    }
+
+    /* 왼쪽 텍스트 영역 */
+    .card-text {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center; /* 수직 중앙 정렬 */
+        align-items: flex-start; /* 왼쪽 정렬 */
+    }
+
+    /* 오른쪽 이미지 영역 */
+    .card-image {
+        position: relative;
         width: 100%;
-        border-collapse: collapse;
-        border: none;
-        margin: 0;
-        padding: 0;
-    }
-    .header-table td {
-        border: none;
-        padding: 0;
-        margin: 0;
-    }
-    
-    /* 왼쪽 텍스트 셀 (55%) - 수직 중앙 정렬 */
-    .td-text {
-        width: 55%;
-        vertical-align: middle; /* 세로 중앙 정렬 */
-        text-align: center;
-        padding-right: 5px;
-    }
-    
-    /* 오른쪽 이미지 셀 (45%) - 빈틈없이 채우기 */
-    .td-img {
-        width: 45%;
-        vertical-align: middle;
-        text-align: right; /* 이미지를 오른쪽 벽에 붙임 */
-    }
-    .td-img img {
-        width: 100%;        /* 셀 너비 100% 사용 */
-        height: auto;       /* 비율 유지 */
-        display: block;     /* 하단 여백 제거 */
-        object-fit: contain;
+        height: 100%;
+        background-color: #F0F8FF; /* 이미지 로딩 전 배경색 */
     }
 
-    /* 텍스트 스타일 */
-    .greeting-main { font-size: 1.1rem; font-weight: bold; color: #333; line-height: 1.4; white-space: nowrap; }
-    .name-highlight { color: #5D9CEC; font-size: 1.4rem; font-weight: 900; margin-bottom: 5px; white-space: nowrap; }
-    .greeting-sub { font-size: 0.85rem; color: #999; font-weight: normal; }
+    /* 이미지 스타일 (꽉 채우기) */
+    .card-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover; /* 비율 유지하며 빈틈없이 꽉 채움 */
+        object-position: top center; /* 얼굴 위주로 */
+    }
 
-    /* 5. UI 요소 스타일 */
+    /* 텍스트 타이포그래피 */
+    .hello-text { font-size: 1rem; color: #666; margin-bottom: 4px; font-weight: 500; }
+    .name-text { font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.2; margin-bottom: 8px; }
+    .name-highlight { color: #5D9CEC; }
+    .msg-text { font-size: 0.85rem; color: #999; }
+
+    /* 5. 탭(Tab) 스타일링 및 높이 고정 */
+    .stTabs [data-baseweb="tab-list"] { 
+        gap: 8px; 
+        margin-bottom: 0px; 
+        background-color: #fff;
+        padding-bottom: 5px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    .stTabs [data-baseweb="tab"] { 
+        height: 44px; 
+        border-radius: 12px; 
+        font-weight: 700; 
+        font-size: 0.95rem; 
+        flex: 1; /* 탭 너비 균등 분할 */
+    }
+    .stTabs [aria-selected="true"] { 
+        color: #5D9CEC !important; 
+        background-color: #F0F8FF !important; 
+    }
+
+    /* [핵심] 탭 내용 흔들림 방지용 스페이서 */
+    .tab-safe-area {
+        height: 20px; /* 모든 탭 상단에 20px 빈 공간 강제 할당 */
+        width: 100%;
+        display: block;
+    }
+
+    /* 6. 공통 컴포넌트 */
     .stButton>button {
         width: 100%;
         border-radius: 12px;
@@ -107,46 +143,41 @@ st.markdown("""
         color: white;
         border: none;
         padding: 0.8rem 0;
+        transition: 0.2s;
     }
     .stButton>button:hover { background-color: #4A89DC; }
 
-    /* 로그아웃 버튼 (작게, 회색) */
-    div[data-testid="column"] .stButton>button {
-        width: auto !important;
-        padding: 0.4rem 1rem !important;
-        font-size: 0.85rem !important;
-        background-color: #999 !important;
-    }
-    div[data-testid="column"] .stButton>button:hover {
-        background-color: #777 !important;
+    /* 로그아웃 버튼 (작고 회색) */
+    .logout-btn-area button {
+        background-color: #f1f3f5 !important;
+        color: #868e96 !important;
+        font-size: 0.8rem !important;
+        padding: 0.5rem !important;
+        margin-top: 10px;
     }
 
-    [data-testid="stMetricValue"] { font-size: 2.4rem; font-weight: 800; color: #5D9CEC; }
+    .login-title {
+        font-size: 1.8rem; font-weight: 800; color: #5D9CEC;
+        text-align: center; margin-bottom: 3rem; margin-top: 2rem;
+    }
+
+    [data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; }
     
     .realtime-badge {
         background-color: #FFF0F0; color: #FF6B6B;
-        padding: 5px 10px; border-radius: 8px;
-        font-size: 0.8rem; font-weight: 700;
-        display: inline-block;
-        margin-bottom: 5px;
+        padding: 5px 12px; border-radius: 20px;
+        font-size: 0.8rem; font-weight: 800;
+        display: inline-block; margin-bottom: 10px;
     }
 
-    .stTabs [data-baseweb="tab-list"] { gap: 5px; margin-bottom: 10px; }
-    .stTabs [data-baseweb="tab"] { height: 45px; border-radius: 10px 10px 0 0; font-weight: 700; font-size: 0.9rem; }
-    .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
-    
-    /* [핵심] 탭 높이 고정용 투명 벽 */
-    .tab-top-spacer {
-        height: 10px;
-        width: 100%;
-        display: block;
-    }
+    /* 셀렉트 박스 스타일 커스텀 */
+    div[data-baseweb="select"] { margin-top: -10px; }
     
     </style>
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 (기존 유지)
+# 2. 구글 드라이브 인증 (기존 로직 유지)
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -169,28 +200,22 @@ def get_drive_service():
 def get_all_files():
     service = get_drive_service()
     if not service: return None, None, None, []
-    
     for _ in range(2):
         try:
             query = f"'{FOLDER_ID}' in parents and trashed=false"
             results = service.files().list(q=query, fields="files(id, name)").execute()
             all_files = results.get('files', [])
-            
             user_db_id, renewal_id, realtime_id = None, None, None
             monthly_files = []
-            
             for f in all_files:
                 name = f['name']
                 if name == "user_db.json": user_db_id = f['id']
                 elif name == "realtime_usage.json": realtime_id = f['id']
                 elif "renewal" in name or "갱신" in name: renewal_id = f['id']
                 elif ".xlsx" in name: monthly_files.append(f)
-            
             monthly_files.sort(key=lambda x: x['name'], reverse=True)
             return user_db_id, renewal_id, realtime_id, monthly_files
-        except:
-            time.sleep(1)
-            continue
+        except: time.sleep(1); continue
     return None, None, None, []
 
 def load_json_file(file_id):
@@ -211,7 +236,7 @@ def save_user_db(file_id, data):
     except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 (기존 유지)
+# 3. 데이터 파싱 로직 (기존 로직 유지)
 # ==============================================================================
 def parse_attendance(file_content):
     try:
@@ -245,7 +270,6 @@ def parse_attendance(file_content):
                     val = str(row[d])
                     if "연차" in val: usage.append(f"{d}일(연차)"); count += 1.0
                     elif "반차" in val: usage.append(f"{d}일(반차)"); count += 0.5
-                
                 remain = 0.0
                 if remain_col_idx != -1 and i + 1 < len(df):
                     try: remain = float(df.iloc[i+1, remain_col_idx])
@@ -286,12 +310,15 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직
+# 4. 메인 로직 (New Layout Ver 0.5)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
+# [Ver 0.5] 버전 배지 표기
+st.markdown('<div class="version-badge">Ver 0.5</div>', unsafe_allow_html=True)
+
 if not user_db_id:
-    st.error("시스템 초기화 오류: user_db.json 없음")
+    st.error("시스템 오류: user_db.json 파일을 찾을 수 없습니다.")
     st.stop()
 
 if 'user_db' not in st.session_state:
@@ -300,6 +327,7 @@ if 'user_db' not in st.session_state:
 
 if 'login_status' not in st.session_state: st.session_state.login_status = False
 
+# A. 로그인 화면
 if not st.session_state.login_status:
     st.markdown('<div class="login-title">옥션원 서울지사<br>연차확인</div>', unsafe_allow_html=True)
     with st.form("login"):
@@ -308,58 +336,62 @@ if not st.session_state.login_status:
         if st.form_submit_button("로그인"):
             if uid in st.session_state.user_db and st.session_state.user_db[uid]['pw'] == upw:
                 st.session_state.login_status = True; st.session_state.user_id = uid; st.rerun()
-            else: st.error("로그인 정보 확인")
+            else: st.error("로그인 정보를 확인해주세요.")
+
+# B. 메인 화면 (Ver 0.5 카드 레이아웃 적용)
 else:
     uid = st.session_state.user_id
     uinfo = st.session_state.user_db.get(uid, {})
     
+    # 1. 초기 비번 변경 로직
     if uinfo.get('first_login', True):
-        st.info(f"👋 {uid}님, 비밀번호를 변경해주세요.")
+        st.info(f"👋 {uid}님, 최초 1회 비밀번호를 변경해주세요.")
         with st.form("fc"):
             p1 = st.text_input("새 비밀번호", type="password")
-            p2 = st.text_input("확인", type="password")
-            if st.form_submit_button("변경"):
+            p2 = st.text_input("비밀번호 확인", type="password")
+            if st.form_submit_button("변경하기"):
                 if p1 == p2 and p1:
                     st.session_state.user_db[uid].update({"pw": p1, "first_login": False})
                     save_user_db(user_db_id, st.session_state.user_db)
-                    st.success("변경 완료. 재로그인 해주세요.")
+                    st.success("변경 완료. 다시 로그인해주세요.")
                     for k in list(st.session_state.keys()): del st.session_state[k]
                     st.rerun()
-                else: st.error("비밀번호 불일치")
+                else: st.error("비밀번호가 일치하지 않습니다.")
     else:
-        # [수정] 테이블 레이아웃: 왼쪽 글자(55%), 오른쪽 이미지(45%)
-        # 이미지에 padding:0, width:100% 줘서 꽉 채움. 왼쪽 글자는 수직중앙정렬
+        # [Ver 0.5] 프로필 카드 Grid 레이아웃 (완벽 고정)
+        # 이미지는 우측 영역을 100% 꽉 채우며(object-fit: cover), 왼쪽 글자는 수직 중앙 정렬됨
         st.markdown(f"""
-        <table class="header-table">
-            <tr>
-                <td class="td-text">
-                    <div class="greeting-main">반갑습니다,</div>
-                    <div class="name-highlight">{uid} {uinfo.get('title','')}님 👋</div>
-                    <div class="greeting-sub">오늘도 좋은 하루 되세요.</div>
-                </td>
-                <td class="td-img">
-                    <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png">
-                </td>
-            </tr>
-        </table>
+        <div class="profile-card">
+            <div class="card-text">
+                <div class="hello-text">반갑습니다,</div>
+                <div class="name-text"><span class="name-highlight">{uid} {uinfo.get('title','')}</span>님</div>
+                <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
+            </div>
+            <div class="card-image">
+                <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png">
+            </div>
+        </div>
         """, unsafe_allow_html=True)
 
-        # 로그아웃 버튼: 테이블 밖으로 뺌
-        c1, c2 = st.columns([1, 2]) # 버튼 크기 조절을 위한 컬럼 분할
-        with c1:
-            if st.button("로그아웃", key="logout_btn"): 
+        # 로그아웃 버튼 (카드 바로 아래에 배치, 작게)
+        c_logout, _ = st.columns([1, 2])
+        with c_logout:
+            st.markdown('<div class="logout-btn-area">', unsafe_allow_html=True)
+            if st.button("로그아웃"): 
                 st.session_state.login_status = False
                 st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
         
-        st.divider()
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
         
+        # 탭 영역 (높이 흔들림 방지 적용)
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
-        # [핵심] 탭 높이 고정용 투명 벽 (모든 탭 공통)
-        spacer = '<div class="tab-top-spacer"></div>'
+        # [Ver 0.5] 모든 탭에 동일한 높이의 Safe Area 적용
+        safe_area = '<div class="tab-safe-area"></div>'
 
         with tab1:
-            st.markdown(spacer, unsafe_allow_html=True) # 공백
+            st.markdown(safe_area, unsafe_allow_html=True) # 높이 고정
             if monthly_files:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
@@ -368,10 +400,10 @@ else:
                 realtime_usage = 0.0
                 realtime_msg = ""
                 
+                # 실시간 데이터 로직
                 try:
                     file_month = int(re.search(r'(\d+)월', latest_file['name']).group(1))
                     current_month = datetime.datetime.now().month
-                    
                     if current_month > file_month and uid in st.session_state.realtime_data:
                         rt_info = st.session_state.realtime_data[uid]
                         realtime_usage = rt_info.get('used', 0.0)
@@ -389,21 +421,18 @@ else:
                             st.markdown(f"<span class='realtime-badge'>📉 실시간 사용 -{realtime_usage}개 반영됨</span>", unsafe_allow_html=True)
                             st.metric("현재 예상 잔여 연차", f"{final_remain}개")
                             st.caption(f"기준: {latest_file['name']} 잔여 ({excel_remain}) - 이번달 사용 ({realtime_usage})")
-                            if realtime_msg: st.info(f"📝 **이번달 추가 내역:** {realtime_msg}")
+                            if realtime_msg: st.info(f"📝 **추가 내역:** {realtime_msg}")
                         else:
                             st.metric("현재 잔여 연차", f"{excel_remain}개")
                             st.caption(f"기준 파일: {latest_file['name']}")
-                    else: st.warning("데이터 없음")
-            else: st.error("파일 없음")
+                    else: st.warning("데이터가 없습니다.")
+            else: st.error("엑셀 파일이 없습니다.")
 
         with tab2:
-            st.markdown(spacer, unsafe_allow_html=True) # 공백
+            st.markdown(safe_area, unsafe_allow_html=True) # 높이 고정
             if monthly_files:
                 opts = {f['name']: f['id'] for f in monthly_files}
-                
-                # [수정] '월별 조회'라는 텍스트를 넣어서 시작 높이를 맞춤
-                st.markdown("<h6 style='margin: 0; padding: 0; color: #666;'>📅 월별 내역 조회</h6>", unsafe_allow_html=True)
-                
+                # 셀렉트박스 라벨을 숨겨서 높이 변화 최소화
                 sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
                 if sel:
                     df = fetch_excel(opts[sel])
@@ -416,7 +445,7 @@ else:
                         st.info(f"내역: {r['사용내역']}")
 
         with tab3:
-            st.markdown(spacer, unsafe_allow_html=True) # 공백
+            st.markdown(safe_area, unsafe_allow_html=True) # 높이 고정
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
                 me = df[df['이름'] == uid]
@@ -429,10 +458,10 @@ else:
                         else: st.success(f"✅ **{r['갱신일']}** 갱신 완료")
                     except: st.write(f"📅 {r['갱신일']}")
                     st.metric("추가 발생", f"+{r['갱신개수']}개")
-            else: st.info("정보 없음")
+            else: st.info("갱신 정보가 없습니다.")
 
         with tab4:
-            st.markdown(spacer, unsafe_allow_html=True) # 공백
+            st.markdown(safe_area, unsafe_allow_html=True) # 높이 고정
             st.write("비밀번호 변경")
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
@@ -441,8 +470,8 @@ else:
                     if p1 == p2 and p1:
                         st.session_state.user_db[uid]['pw'] = p1
                         save_user_db(user_db_id, st.session_state.user_db)
-                        st.success("저장 완료")
-                    else: st.error("불일치")
+                        st.success("저장되었습니다.")
+                    else: st.error("비밀번호가 일치하지 않습니다.")
         
         if uinfo.get('role') == 'admin':
-            with st.expander("🔐 관리자"): st.json(st.session_state.user_db)
+            with st.expander("🔐 관리자 데이터 확인"): st.json(st.session_state.user_db)
