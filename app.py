@@ -11,7 +11,7 @@ import re
 import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (캐릭터 레이아웃 & 탭 위치 통일)
+# 1. 페이지 설정 및 CSS (모바일 강제 가로 정렬 & 캐릭터 확대)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -41,8 +41,8 @@ st.markdown("""
             max-width: 100%; 
             box-shadow: none; 
             padding-top: 3rem !important;
-            padding-left: 1.2rem;
-            padding-right: 1.2rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
             border-radius: 0;
         } 
     }
@@ -71,13 +71,11 @@ st.markdown("""
         transition: all 0.2s ease-in-out;
     }
     .stButton>button:hover { background-color: #4A89DC; transform: scale(1.01); }
-    /* 로그아웃 버튼만 예외적으로 크기 줄임 */
+    
+    /* 로그아웃 버튼 미세 조정 */
     [data-testid="column"] .stButton>button {
         padding: 0.6rem 0;
         font-size: 0.9rem;
-        width: auto; /* 내용에 맞게 너비 자동 조절 */
-        padding-left: 1.2rem;
-        padding-right: 1.2rem;
     }
 
     /* 5. 메트릭(숫자) 스타일 */
@@ -92,13 +90,13 @@ st.markdown("""
         font-weight: 600;
     }
 
-    /* 6. 상단 헤더 (인사말 + 캐릭터) 레이아웃 수정 */
+    /* 6. 상단 헤더 텍스트 스타일 */
     .greeting-text {
         font-size: 1.15rem;
         font-weight: bold;
-        line-height: 1.5;
+        line-height: 1.4;
         color: #333;
-        margin-bottom: 1rem;
+        margin-bottom: 0.8rem;
     }
     .user-name-highlight {
         color: #5D9CEC;
@@ -106,27 +104,31 @@ st.markdown("""
         font-weight: 900;
     }
     .sub-greeting {
-        font-size: 0.95rem; 
+        font-size: 0.9rem; 
         color: #999; 
         font-weight: normal;
+        display: block;
+        margin-top: 4px;
     }
     
-    /* [핵심 수정] 캐릭터 이미지 스타일: 오른쪽 컬럼에 꽉 차게 */
+    /* 7. 캐릭터 이미지 스타일 [핵심 수정] */
     .character-img-container {
         display: flex;
-        justify-content: center;
+        justify-content: center; /* 가운데 정렬 */
         align-items: center;
+        width: 100%;
         height: 100%;
     }
     .character-img {
-        width: 100%;         /* 컨테이너 너비에 맞춤 */
-        max-width: 180px;    /* 너무 커지지 않게 최대폭 제한 (원하는 만큼 조절 가능) */
+        width: 100%;         /* 부모 컨테이너 너비에 100% 맞춤 */
         height: auto;        /* 비율 유지 */
-        object-fit: contain; /* 잘리지 않고 다 보이게 */
+        object-fit: contain; 
         display: block;
+        /* 그림자 효과로 입체감 추가 (선택) */
+        filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.1)); 
     }
 
-    /* 7. 탭 및 배지 스타일 */
+    /* 8. 배지 스타일 */
     .realtime-badge {
         background-color: #FFF0F0;
         color: #FF6B6B;
@@ -138,6 +140,7 @@ st.markdown("""
         display: inline-block;
     }
     
+    /* 9. 탭 스타일 */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 1.5rem; }
     .stTabs [data-baseweb="tab"] { 
         height: 48px; 
@@ -150,21 +153,35 @@ st.markdown("""
         color: #5D9CEC !important; 
         background-color: #F0F8FF !important; 
     }
-
-    /* [핵심 수정] 탭 내용 상단 위치 통일을 위한 여백 클래스 */
     .tab-content-spacer {
-        height: 1.5rem; /* 모든 탭 상단에 동일한 높이의 투명 공간 확보 */
+        height: 1.5rem;
         width: 100%;
         display: block;
         content: "";
     }
     
-    /* 기타 입력창 스타일 */
     .stTextInput > div > div > input {
         border-radius: 12px;
         padding: 0.8rem 1rem;
         border: 1px solid #EEE;
         background-color: #FAFAFA;
+    }
+
+    /* ================================================================= */
+    /* [핵심] 모바일 강제 가로 정렬 (Stacking 방지 CSS) */
+    /* ================================================================= */
+    @media (max-width: 576px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important; /* 가로 방향 강제 */
+            flex-wrap: nowrap !important;   /* 줄바꿈 금지 */
+            align-items: center !important; /* 수직 중앙 정렬 */
+            gap: 12px !important;           /* 컬럼 사이 간격 */
+        }
+        div[data-testid="column"] {
+            flex: 1 1 auto !important;      /* 비율대로 공간 차지 */
+            min-width: 0 !important;        /* 내용이 넘쳐도 컬럼을 깨지 않음 */
+            width: auto !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -343,7 +360,7 @@ else:
             p1 = st.text_input("새 비밀번호", type="password")
             p2 = st.text_input("확인", type="password")
             if st.form_submit_button("변경"):
-                if p1 and p1 == p2:
+                if p1 == p2 and p1:
                     st.session_state.user_db[uid].update({"pw": p1, "first_login": False})
                     save_user_db(user_db_id, st.session_state.user_db)
                     st.success("변경 완료. 재로그인 해주세요.")
@@ -351,8 +368,10 @@ else:
                     st.rerun()
                 else: st.error("비밀번호 불일치")
     else:
-        # [핵심 수정] 상단 레이아웃 2분할 (왼쪽: 텍스트, 오른쪽: 캐릭터 이미지 크게)
-        col1, col2 = st.columns([1.4, 1]) # 비율 조정 (왼쪽을 조금 더 넓게)
+        # [핵심 수정] 
+        # 1. 컬럼 비율 [1.2, 1]로 조정하여 캐릭터 공간 확보
+        # 2. CSS(flex-direction: row)가 적용되어 모바일에서도 가로로 유지됨
+        col1, col2 = st.columns([1.2, 1]) 
         
         with col1:
             st.markdown(f"""
@@ -362,11 +381,11 @@ else:
                 <span class="sub-greeting">오늘도 좋은 하루 되세요.</span>
             </div>
             """, unsafe_allow_html=True)
-            # 로그아웃 버튼을 텍스트 바로 아래 배치
+            # 로그아웃 버튼 (모바일에서도 왼쪽 컬럼 안에 위치)
             if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
 
         with col2:
-            # 캐릭터 이미지를 오른쪽 컬럼에 꽉 차게 배치
+            # 캐릭터 이미지
             st.markdown(f"""
             <div class="character-img-container">
                 <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png" class="character-img" alt="캐릭터">
@@ -376,12 +395,10 @@ else:
         st.divider()
         
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
-        
-        # [핵심 수정] 모든 탭 상단에 동일한 투명 여백 삽입
         spacer_html = '<div class="tab-content-spacer"></div>'
 
         with tab1:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if monthly_files:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
@@ -419,7 +436,7 @@ else:
             else: st.error("파일 없음")
 
         with tab2:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if monthly_files:
                 opts = {f['name']: f['id'] for f in monthly_files}
                 sel = st.selectbox("월 선택", list(opts.keys()))
@@ -434,7 +451,7 @@ else:
                         st.info(f"내역: {r['사용내역']}")
 
         with tab3:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
                 me = df[df['이름'] == uid]
@@ -450,7 +467,7 @@ else:
             else: st.info("정보 없음")
 
         with tab4:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
+            st.markdown(spacer_html, unsafe_allow_html=True)
             st.write("비밀번호 변경")
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
