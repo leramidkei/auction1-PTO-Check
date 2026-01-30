@@ -11,7 +11,7 @@ import re
 import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (강력한 레이아웃 고정)
+# 1. 페이지 설정 및 CSS (캐릭터 가출 방지 & 탭 높이 교정)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -23,12 +23,11 @@ st.markdown("""
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 (상단 여백 대폭 증가) */
+    /* 2. 메인 컨테이너 */
     .block-container {
         max-width: 480px;
-        /* [수정] 상단 여백을 6rem으로 늘려 짤림 방지 */
-        padding-top: 6rem; 
-        padding-bottom: 3rem;
+        padding-top: 3rem;
+        padding-bottom: 2rem;
         padding-left: 1.2rem;
         padding-right: 1.2rem;
         margin: auto;
@@ -41,8 +40,7 @@ st.markdown("""
         .block-container { 
             max-width: 100%; 
             box-shadow: none; 
-            /* [수정] 모바일에서 상단 여백 더 확보 */
-            padding-top: 5rem !important; 
+            padding-top: 2rem !important;
             padding-left: 1rem;
             padding-right: 1rem;
             border-radius: 0;
@@ -60,59 +58,7 @@ st.markdown("""
         margin-top: 2rem;
     }
 
-    /* 4. [핵심] 모바일 컬럼 강제 가로 정렬 (절대 줄바꿈 금지) */
-    div[data-testid="column"] {
-        display: flex;
-        flex-direction: column; 
-        justify-content: center;
-    }
-    
-    /* 화면이 좁아져도 컬럼들이 가로로 유지되도록 강제 */
-    div[data-testid="stHorizontalBlock"] {
-        flex-direction: row !important; /* 무조건 가로 */
-        flex-wrap: nowrap !important;   /* 줄바꿈 금지 */
-        align-items: center !important;
-        gap: 0.5rem !important;
-    }
-
-    /* 5. 캐릭터 이미지 스타일 */
-    .character-img-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100%;
-        width: 100%;
-    }
-    .character-img {
-        width: 100%;
-        max-width: 140px; 
-        min-width: 110px; /* 최소 크기 보장 */
-        height: auto;
-        object-fit: contain;
-        display: block;
-    }
-
-    /* 6. 헤더 텍스트 스타일 (폰트 줄임) */
-    .greeting-text {
-        font-size: 1rem; /* 1.2 -> 1.0으로 축소 */
-        font-weight: bold;
-        line-height: 1.3;
-        color: #333;
-        margin-bottom: 0.5rem;
-        white-space: nowrap; /* 글자 줄바꿈 방지 */
-    }
-    .user-name-highlight { 
-        color: #5D9CEC; 
-        font-size: 1.3rem; /* 1.5 -> 1.3으로 축소 */
-        font-weight: 900; 
-    }
-    .sub-greeting { 
-        font-size: 0.85rem; 
-        color: #999; 
-        font-weight: normal; 
-    }
-    
-    /* 7. 버튼 및 기타 스타일 */
+    /* 4. 버튼 스타일 */
     .stButton>button {
         width: 100%;
         border-radius: 12px;
@@ -120,37 +66,83 @@ st.markdown("""
         background-color: #5D9CEC; 
         color: white;
         border: none;
-        padding: 0.7rem 0;
+        padding: 0.8rem 0;
     }
     .stButton>button:hover { background-color: #4A89DC; }
-    
-    /* 로그아웃 버튼 크기 줄임 */
-    div[data-testid="column"]:nth-of-type(1) .stButton>button {
-        width: auto;
-        padding: 0.4rem 1rem;
-        font-size: 0.85rem;
-    }
 
-    /* 메트릭 및 탭 */
-    [data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; }
-    
-    .realtime-badge {
-        background-color: #FFF0F0; color: #FF6B6B;
-        padding: 4px 8px; border-radius: 8px;
-        font-size: 0.8rem; font-weight: 700;
-        margin-bottom: 8px; display: inline-block;
-    }
-
-    .stTabs [data-baseweb="tab-list"] { gap: 5px; margin-bottom: 0px; }
-    .stTabs [data-baseweb="tab"] { height: 45px; border-radius: 10px 10px 0 0; font-weight: 700; font-size: 0.9rem; }
-    .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
-    
-    /* 탭 상단 강제 여백 박스 */
-    .tab-spacer {
-        height: 20px;
+    /* 5. [핵심] 커스텀 헤더 레이아웃 (HTML Flexbox) */
+    /* Streamlit 컬럼 대신 이걸 씁니다. 절대 안 깨집니다. */
+    .custom-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         width: 100%;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid #f0f0f0;
+        padding-bottom: 1.5rem;
+    }
+    .header-text-area {
+        flex: 1; /* 남은 공간 다 차지 */
+        padding-right: 10px;
+    }
+    .header-img-area {
+        width: 130px; /* PC 기본 크기 */
+        flex-shrink: 0; /* 절대 줄어들지 않음 (찌그러짐 방지) */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .custom-char-img {
+        width: 100%;
+        height: auto;
+        object-fit: contain;
+    }
+    
+    /* 모바일 맞춤 조정 */
+    @media (max-width: 420px) {
+        .header-img-area {
+            width: 100px; /* 모바일에서는 이미지 영역을 조금 줄임 */
+        }
+        .greeting-main { font-size: 1.1rem !important; }
+        .greeting-sub { font-size: 0.85rem !important; }
+    }
+
+    /* 텍스트 스타일 */
+    .greeting-main { font-size: 1.2rem; font-weight: bold; color: #333; line-height: 1.4; }
+    .name-highlight { color: #5D9CEC; font-size: 1.4rem; font-weight: 900; }
+    .greeting-sub { font-size: 0.9rem; color: #999; margin-top: 4px; display: block; }
+    
+    /* 로그아웃 버튼 (커스텀 위치용) */
+    .logout-btn-area { margin-top: 10px; }
+    .logout-btn-area button { 
+        padding: 5px 15px !important; 
+        font-size: 0.8rem !important; 
+        width: auto !important; 
+        background-color: #888 !important;
+    }
+
+    /* 6. 탭 높이 교정용 투명 벽돌 */
+    .tab-fix-brick {
+        height: 1px;
+        width: 100%;
+        margin-bottom: 20px; /* 모든 탭 콘텐츠를 20px 아래에서 시작하게 함 */
         display: block;
     }
+
+    /* 7. 메트릭 & 배지 */
+    [data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; }
+    .realtime-badge {
+        background-color: #FFF0F0; color: #FF6B6B;
+        padding: 5px 10px; border-radius: 8px;
+        font-size: 0.8rem; font-weight: 700;
+        display: inline-block;
+        margin-bottom: 5px;
+    }
+    
+    /* 탭 스타일 */
+    .stTabs [data-baseweb="tab-list"] { gap: 5px; }
+    .stTabs [data-baseweb="tab"] { height: 45px; border-radius: 10px 10px 0 0; font-weight: 700; font-size: 0.9rem; }
+    .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
     
     </style>
     """, unsafe_allow_html=True)
@@ -337,33 +329,32 @@ else:
                     st.rerun()
                 else: st.error("비밀번호 불일치")
     else:
-        # [핵심 수정] 가로 강제 정렬 (왼쪽: 텍스트 65%, 오른쪽: 이미지 35%)
-        col1, col2 = st.columns([65, 35])
-        
-        with col1:
-            st.markdown(f"""
-            <div class="greeting-text">
-                반갑습니다,<br>
-                <span class="user-name-highlight">{uid} {uinfo.get('title','')}</span>님 👋<br>
-                <span class="sub-greeting">오늘도 좋은 하루 되세요.</span>
+        # [핵심] Streamlit 컬럼 대신 HTML Flexbox로 직접 구현 (깨짐 방지 완벽 해결)
+        st.markdown(f"""
+        <div class="custom-header">
+            <div class="header-text-area">
+                <div class="greeting-main">반갑습니다,</div>
+                <div class="name-highlight">{uid} {uinfo.get('title','')}님 👋</div>
+                <span class="greeting-sub">오늘도 좋은 하루 되세요.</span>
             </div>
-            """, unsafe_allow_html=True)
-            if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
+            <div class="header-img-area">
+                <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png" class="custom-char-img">
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-        with col2:
-            st.markdown(f"""
-            <div class="character-img-container">
-                <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png" class="character-img" alt="캐릭터">
-            </div>
-            """, unsafe_allow_html=True)
-            
-        st.divider()
+        if st.button("로그아웃", key="logout_top"): 
+            st.session_state.login_status = False
+            st.rerun()
         
+        # 탭 시작
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
-        spacer_html = '<div class="tab-spacer"></div>'
+        
+        # [핵심] 모든 탭의 시작 높이를 맞추는 '투명 벽돌'
+        fix_brick = '<div class="tab-fix-brick"></div>'
 
         with tab1:
-            st.markdown(spacer_html, unsafe_allow_html=True) 
+            st.markdown(fix_brick, unsafe_allow_html=True) # 투명 벽돌 삽입
             if monthly_files:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
@@ -401,10 +392,12 @@ else:
             else: st.error("파일 없음")
 
         with tab2:
-            st.markdown(spacer_html, unsafe_allow_html=True)
+            st.markdown(fix_brick, unsafe_allow_html=True) # 투명 벽돌 삽입
             if monthly_files:
                 opts = {f['name']: f['id'] for f in monthly_files}
-                sel = st.selectbox("월 선택", list(opts.keys()))
+                # 셀렉트박스 라벨을 숨기고 커스텀 마크다운 라벨 사용 (높이 통일용)
+                st.markdown("**📅 월 선택**")
+                sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
                 if sel:
                     df = fetch_excel(opts[sel])
                     me = df[df['이름'] == uid]
@@ -416,7 +409,7 @@ else:
                         st.info(f"내역: {r['사용내역']}")
 
         with tab3:
-            st.markdown(spacer_html, unsafe_allow_html=True)
+            st.markdown(fix_brick, unsafe_allow_html=True) # 투명 벽돌 삽입
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
                 me = df[df['이름'] == uid]
@@ -432,7 +425,7 @@ else:
             else: st.info("정보 없음")
 
         with tab4:
-            st.markdown(spacer_html, unsafe_allow_html=True)
+            st.markdown(fix_brick, unsafe_allow_html=True) # 투명 벽돌 삽입
             st.write("비밀번호 변경")
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
