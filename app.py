@@ -149,15 +149,15 @@ def load_excel_by_id(file_id, is_renewal=False):
 if 'user_db' not in st.session_state:
     st.session_state.user_db = {
         # 🔴 여기에 실제 직원 정보를 다시 입력해주세요!
-        "김상호": {"pw": "1234", "과장": "admin", "first_login": True},
-        "정다은": {"pw": "1234", "관리이사": "s-user", "first_login": True},
-        "고정융": {"pw": "1234", "관리이사": "user", "first_login": True},
-        "강원길": {"pw": "1234", "팀장": "user", "first_login": True},
-        "김사길": {"pw": "1234", "팀장": "user", "first_login": True},
-        "문경남": {"pw": "1234", "과장": "user", "first_login": True},
-        "최향자": {"pw": "1234", "과장": "user", "first_login": True},
-        "김강민": {"pw": "1234", "사원": "user", "first_login": True},
-        "김동준": {"pw": "1234", "사원": "user", "first_login": True},
+        "김상호": {"pw": "1234", "role": "admin", "first_login": True},
+        "정다은": {"pw": "1234", "role": "s-user", "first_login": True},
+        "고정융": {"pw": "1234", "role": "user", "first_login": True},
+        "강원길": {"pw": "1234", "role": "user", "first_login": True},
+        "김사길": {"pw": "1234", "role": "user", "first_login": True},
+        "문경남": {"pw": "1234", "role": "user", "first_login": True},
+        "최향자": {"pw": "1234", "role": "user", "first_login": True},
+        "김강민": {"pw": "1234", "role": "user", "first_login": True},
+        "김동준": {"pw": "1234", "role": "user", "first_login": True},
     }
 
 if 'login_status' not in st.session_state: st.session_state.login_status = False
@@ -260,3 +260,4 @@ else:
                 if 'df' in locals() and not df.empty:
                     st.write("읽어온 데이터 컬럼:", df.columns.tolist())
                     st.dataframe(df)
+
