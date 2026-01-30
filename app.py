@@ -23,11 +23,12 @@ st.markdown("""
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 */
+    /* 2. 메인 컨테이너 (상단 여백 대폭 증가) */
     .block-container {
         max-width: 480px;
-        padding-top: 3rem;
-        padding-bottom: 2rem;
+        /* [수정] 상단 여백을 6rem으로 늘려 짤림 방지 */
+        padding-top: 6rem; 
+        padding-bottom: 3rem;
         padding-left: 1.2rem;
         padding-right: 1.2rem;
         margin: auto;
@@ -40,7 +41,8 @@ st.markdown("""
         .block-container { 
             max-width: 100%; 
             box-shadow: none; 
-            padding-top: 2rem !important;
+            /* [수정] 모바일에서 상단 여백 더 확보 */
+            padding-top: 5rem !important; 
             padding-left: 1rem;
             padding-right: 1rem;
             border-radius: 0;
@@ -58,11 +60,19 @@ st.markdown("""
         margin-top: 2rem;
     }
 
-    /* 4. [핵심] 모바일 컬럼 강제 가로 정렬 (캐릭터 사라짐 방지) */
-    [data-testid="column"] {
-        width: calc(50% - 1rem) !important;
-        flex: 1 1 calc(50% - 1rem) !important;
-        min-width: 120px !important; /* 최소 너비 확보 */
+    /* 4. [핵심] 모바일 컬럼 강제 가로 정렬 (절대 줄바꿈 금지) */
+    div[data-testid="column"] {
+        display: flex;
+        flex-direction: column; 
+        justify-content: center;
+    }
+    
+    /* 화면이 좁아져도 컬럼들이 가로로 유지되도록 강제 */
+    div[data-testid="stHorizontalBlock"] {
+        flex-direction: row !important; /* 무조건 가로 */
+        flex-wrap: nowrap !important;   /* 줄바꿈 금지 */
+        align-items: center !important;
+        gap: 0.5rem !important;
     }
 
     /* 5. 캐릭터 이미지 스타일 */
@@ -71,60 +81,76 @@ st.markdown("""
         justify-content: center;
         align-items: center;
         height: 100%;
-        overflow: visible; /* 잘림 방지 */
+        width: 100%;
     }
     .character-img {
         width: 100%;
-        max-width: 160px; /* PC에서 너무 커짐 방지 */
-        min-width: 120px; /* 모바일에서 너무 작아짐 방지 */
+        max-width: 140px; 
+        min-width: 110px; /* 최소 크기 보장 */
         height: auto;
         object-fit: contain;
         display: block;
-        margin: auto;
     }
 
-    /* 6. 탭 상단 위치 고정을 위한 스페이서 */
-    .tab-spacer {
-        height: 25px; /* 모든 탭의 시작 높이를 이걸로 통일 */
-        width: 100%;
-        display: block;
-        visibility: hidden;
-    }
-
-    /* 7. 기타 UI 스타일 */
+    /* 6. 헤더 텍스트 스타일 (폰트 줄임) */
     .greeting-text {
-        font-size: 1.2rem;
+        font-size: 1rem; /* 1.2 -> 1.0으로 축소 */
         font-weight: bold;
-        line-height: 1.4;
+        line-height: 1.3;
         color: #333;
-        margin-bottom: 0.8rem;
+        margin-bottom: 0.5rem;
+        white-space: nowrap; /* 글자 줄바꿈 방지 */
     }
-    .user-name-highlight { color: #5D9CEC; font-size: 1.5rem; font-weight: 900; }
-    .sub-greeting { font-size: 0.9rem; color: #999; font-weight: normal; }
+    .user-name-highlight { 
+        color: #5D9CEC; 
+        font-size: 1.3rem; /* 1.5 -> 1.3으로 축소 */
+        font-weight: 900; 
+    }
+    .sub-greeting { 
+        font-size: 0.85rem; 
+        color: #999; 
+        font-weight: normal; 
+    }
     
+    /* 7. 버튼 및 기타 스타일 */
     .stButton>button {
         width: 100%;
-        border-radius: 14px;
+        border-radius: 12px;
         font-weight: 700;
         background-color: #5D9CEC; 
         color: white;
         border: none;
-        padding: 0.8rem 0;
+        padding: 0.7rem 0;
     }
     .stButton>button:hover { background-color: #4A89DC; }
     
-    [data-testid="stMetricValue"] { font-size: 2.4rem; font-weight: 800; color: #5D9CEC; }
+    /* 로그아웃 버튼 크기 줄임 */
+    div[data-testid="column"]:nth-of-type(1) .stButton>button {
+        width: auto;
+        padding: 0.4rem 1rem;
+        font-size: 0.85rem;
+    }
+
+    /* 메트릭 및 탭 */
+    [data-testid="stMetricValue"] { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; }
     
     .realtime-badge {
         background-color: #FFF0F0; color: #FF6B6B;
-        padding: 5px 10px; border-radius: 10px;
-        font-size: 0.85rem; font-weight: 700;
-        margin-bottom: 12px; display: inline-block;
+        padding: 4px 8px; border-radius: 8px;
+        font-size: 0.8rem; font-weight: 700;
+        margin-bottom: 8px; display: inline-block;
     }
 
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
-    .stTabs [data-baseweb="tab"] { height: 48px; border-radius: 12px 12px 0 0; font-weight: 700; }
+    .stTabs [data-baseweb="tab-list"] { gap: 5px; margin-bottom: 0px; }
+    .stTabs [data-baseweb="tab"] { height: 45px; border-radius: 10px 10px 0 0; font-weight: 700; font-size: 0.9rem; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
+    
+    /* 탭 상단 강제 여백 박스 */
+    .tab-spacer {
+        height: 20px;
+        width: 100%;
+        display: block;
+    }
     
     </style>
     """, unsafe_allow_html=True)
@@ -311,8 +337,8 @@ else:
                     st.rerun()
                 else: st.error("비밀번호 불일치")
     else:
-        # [수정] 모바일 깨짐 방지 레이아웃
-        col1, col2 = st.columns([1.5, 1])
+        # [핵심 수정] 가로 강제 정렬 (왼쪽: 텍스트 65%, 오른쪽: 이미지 35%)
+        col1, col2 = st.columns([65, 35])
         
         with col1:
             st.markdown(f"""
@@ -334,12 +360,10 @@ else:
         st.divider()
         
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
-        
-        # [핵심] 모든 탭의 상단 위치를 고정하는 투명 박스
         spacer_html = '<div class="tab-spacer"></div>'
 
         with tab1:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 강제 여백
+            st.markdown(spacer_html, unsafe_allow_html=True) 
             if monthly_files:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
@@ -377,7 +401,7 @@ else:
             else: st.error("파일 없음")
 
         with tab2:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 강제 여백
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if monthly_files:
                 opts = {f['name']: f['id'] for f in monthly_files}
                 sel = st.selectbox("월 선택", list(opts.keys()))
@@ -392,7 +416,7 @@ else:
                         st.info(f"내역: {r['사용내역']}")
 
         with tab3:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 강제 여백
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
                 me = df[df['이름'] == uid]
@@ -408,7 +432,7 @@ else:
             else: st.info("정보 없음")
 
         with tab4:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 강제 여백
+            st.markdown(spacer_html, unsafe_allow_html=True)
             st.write("비밀번호 변경")
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
