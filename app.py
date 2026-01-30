@@ -1,9 +1,9 @@
-# [Ver 0.7] 옥션원 서울지사 연차확인 시스템
+# [Ver 0.8] 옥션원 서울지사 연차확인 시스템
 # Update: 2026-01-30
 # Changes: 
-# - 상단 여백(Safe Area) 대폭 확대 -> 버전 정보 짤림 방지
-# - 로그아웃 버튼과 탭 사이 간격 최소화 (불필요한 공백 제거)
-# - CSS 최적화
+# - 파일 목록 정렬 로직 개선 (연/월 숫자 기준 내림차순)
+# - 상단 여백 축소 (헤더와 버전 정보 사이 간격 줄임)
+# - 하단 여백 확보 (내용이 바닥에 붙는 현상 해결)
 
 import streamlit as st
 import pandas as pd
@@ -18,13 +18,13 @@ import re
 import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 0.7)
+# 1. 페이지 설정 및 CSS (Ver 0.8)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
 st.markdown("""
     <style>
-    /* 1. 폰트 및 배경 */
+    /* 1. 폰트 및 기본 배경 */
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
     
     [data-testid="stAppViewContainer"] {
@@ -32,11 +32,11 @@ st.markdown("""
         font-family: 'Pretendard', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 (상단 여백 2배로 늘림: 짤림 방지) */
+    /* 2. 메인 컨테이너 (상단 줄이고, 하단 늘림) */
     .block-container {
         max-width: 480px;
-        padding-top: 5rem; /* [수정] 2rem -> 5rem (안전거리 확보) */
-        padding-bottom: 2rem;
+        padding-top: 3rem; /* [수정] 5rem -> 3rem (상단 간격 축소) */
+        padding-bottom: 5rem; /* [수정] 하단 여백 넉넉하게 확보 */
         padding-left: 1.2rem;
         padding-right: 1.2rem;
         margin: auto;
@@ -70,7 +70,7 @@ st.markdown("""
         background-color: #fff;
         border-radius: 20px;
         overflow: hidden;
-        margin-bottom: 10px; /* [수정] 카드 아래 여백 줄임 */
+        margin-bottom: 10px;
         height: 160px; 
         border: 1px solid #f0f0f0;
     }
@@ -102,10 +102,8 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #999; }
 
-    /* 5. 탭 스타일링 (간격 축소 적용) */
-    .stTabs {
-        margin-top: -10px; /* [수정] 탭 전체를 위로 당김 */
-    }
+    /* 5. 탭 스타일링 */
+    .stTabs { margin-top: -10px; }
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         margin-bottom: 15px; 
@@ -127,7 +125,6 @@ st.markdown("""
         background-color: #F0F8FF !important; 
     }
 
-    /* 탭 헤더 타이틀 */
     .tab-section-header {
         font-size: 1rem;
         font-weight: 700;
@@ -154,14 +151,13 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #4A89DC; }
 
-    /* 로그아웃 버튼 영역 최적화 */
     .logout-btn-area button {
         background-color: #f1f3f5 !important;
         color: #868e96 !important;
         font-size: 0.8rem !important;
         padding: 0.5rem !important;
-        margin-top: 0px; /* [수정] 상단 여백 제거 */
-        margin-bottom: 0px; /* [수정] 하단 여백 제거 */
+        margin-top: 0px;
+        margin-bottom: 0px;
     }
 
     .login-title {
@@ -202,6 +198,16 @@ def get_drive_service():
         st.error(f"인증 실패: {e}")
         return None
 
+# [Ver 0.8] 정렬 키 생성 함수 (2026_1월 -> 202601)
+def get_file_sort_key(filename):
+    # 정규식으로 연도와 월 추출
+    match = re.search(r'(\d{4})_(\d+)', filename)
+    if match:
+        year = int(match.group(1))
+        month = int(match.group(2))
+        return (year, month) # 튜플로 반환하여 연도 우선, 그 다음 월 정렬
+    return (0, 0) # 매칭 안 되면 맨 뒤로
+
 def get_all_files():
     service = get_drive_service()
     if not service: return None, None, None, []
@@ -218,7 +224,10 @@ def get_all_files():
                 elif name == "realtime_usage.json": realtime_id = f['id']
                 elif "renewal" in name or "갱신" in name: renewal_id = f['id']
                 elif ".xlsx" in name: monthly_files.append(f)
-            monthly_files.sort(key=lambda x: x['name'], reverse=True)
+            
+            # [Ver 0.8] 스마트 정렬 적용
+            monthly_files.sort(key=lambda x: get_file_sort_key(x['name']), reverse=True)
+            
             return user_db_id, renewal_id, realtime_id, monthly_files
         except: time.sleep(1); continue
     return None, None, None, []
@@ -315,7 +324,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 0.7)
+# 4. 메인 로직 (Ver 0.8)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -360,10 +369,10 @@ else:
                     st.rerun()
                 else: st.error("비밀번호가 일치하지 않습니다.")
     else:
-        # [Ver 0.7] 버전 배지
+        # [Ver 0.8] 버전 배지
         st.markdown("""
         <div class="version-badge-container">
-            <div class="version-badge">Ver 0.7</div>
+            <div class="version-badge">Ver 0.8</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -381,7 +390,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 로그아웃 버튼 (카드와 탭 사이 간격 축소)
+        # 로그아웃 버튼
         c_logout, _ = st.columns([1, 2])
         with c_logout:
             st.markdown('<div class="logout-btn-area">', unsafe_allow_html=True)
@@ -389,8 +398,6 @@ else:
                 st.session_state.login_status = False
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
-        
-        # [수정] 공백 div 제거하고 바로 탭 시작
         
         # 탭 영역
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
@@ -434,6 +441,9 @@ else:
                             st.caption(f"기준 파일: {latest_file['name']}")
                     else: st.warning("데이터가 없습니다.")
             else: st.error("엑셀 파일이 없습니다.")
+            
+            # [Ver 0.8] 하단 여백 추가 (바닥에 붙는 현상 방지)
+            st.markdown("<br><br>", unsafe_allow_html=True)
 
         with tab2:
             tab_header("월별 사용 내역 조회") 
@@ -449,6 +459,8 @@ else:
                         c1.metric("사용", f"{r['사용개수']}개")
                         c2.metric("잔여", f"{r['잔여']}개")
                         st.info(f"내역: {r['사용내역']}")
+            
+            st.markdown("<br><br>", unsafe_allow_html=True)
 
         with tab3:
             tab_header("연차 갱신 및 발생 내역") 
@@ -465,6 +477,8 @@ else:
                     except: st.write(f"📅 {r['갱신일']}")
                     st.metric("추가 발생", f"+{r['갱신개수']}개")
             else: st.info("갱신 정보가 없습니다.")
+            
+            st.markdown("<br><br>", unsafe_allow_html=True)
 
         with tab4:
             tab_header("비밀번호 변경") 
@@ -477,6 +491,8 @@ else:
                         save_user_db(user_db_id, st.session_state.user_db)
                         st.success("저장되었습니다.")
                     else: st.error("비밀번호가 일치하지 않습니다.")
+            
+            st.markdown("<br><br>", unsafe_allow_html=True)
         
         if uinfo.get('role') == 'admin':
             with st.expander("🔐 관리자 데이터 확인"): st.json(st.session_state.user_db)
