@@ -1,10 +1,9 @@
-# [Ver 1.3] 옥션원 서울지사 연차확인 시스템
+# [Ver 1.4] 옥션원 서울지사 연차확인 시스템
 # Update: 2026-01-31
 # Changes: 
-# - 오늘 날짜 기준 '갱신 연차 자동 합산' 로직 도입 (오늘 >= 갱신일 시 자동 반영)
-# - 관리자 모드 & 로그아웃 버튼 강제 1열 배치
-# - 잔여 연차 숫자 크기 대폭 확대 및 정렬 보정
-# - 기준 파일명 검정색 텍스트 변경 및 갱신 숫자 색상 통일
+# - 로그인 UI 디자인 원복 (깔끔한 중앙 정렬)
+# - 프로필 카드 배경색 복구 (은은한 하늘색)
+# - 연차 갱신 로직 고도화 (기준 파일 날짜 vs 갱신일 비교 -> 중복 합산 방지)
 
 import streamlit as st
 import pandas as pd
@@ -18,9 +17,10 @@ import datetime
 import re
 import os
 import math
+from dateutil.relativedelta import relativedelta # 날짜 계산용
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 1.3)
+# 1. 페이지 설정 및 CSS (Ver 1.4)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -30,6 +30,7 @@ st.markdown("""
     
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
+    /* 메인 컨테이너 */
     .block-container {
         max-width: 480px; padding-top: 3rem; padding-bottom: 5rem;
         padding-left: 1.2rem; padding-right: 1.2rem;
@@ -37,30 +38,37 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    .version-badge {
-        text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px;
+    /* [Ver 1.4 복구] 로그인 화면 전용 스타일 */
+    .login-container {
+        padding: 40px 20px; text-align: center;
+    }
+    .login-title {
+        font-size: 2rem; font-weight: 800; color: #5D9CEC;
+        margin-bottom: 40px; margin-top: 20px;
     }
 
+    /* [Ver 1.4 복구] 프로필 카드 (배경색 하늘색) */
     .profile-card {
         display: grid; grid-template-columns: 1.4fr 1fr; 
-        background-color: #fff; border-radius: 20px; overflow: hidden;
-        margin-bottom: 15px; height: 160px; border: 1px solid #f0f0f0;
+        background-color: #F0F8FF; /* [복구] 은은한 하늘색 */
+        border-radius: 20px; overflow: hidden;
+        margin-bottom: 15px; height: 160px; border: 1px solid #E1E8ED;
     }
     .card-text { padding: 20px; display: flex; flex-direction: column; justify-content: center; }
     .card-image img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-    .hello-text { font-size: 1rem; color: #666; margin-bottom: 4px; }
+    
+    .hello-text { font-size: 1rem; color: #555; margin-bottom: 4px; font-weight: 500; }
     .name-text { font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.3; word-break: keep-all; }
     .name-highlight { color: #5D9CEC; }
+    .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* [Ver 1.3 수정] 관리자 도구 한 줄 강제 정렬 */
+    /* 관리자 도구 */
     .admin-flex-row {
         display: flex; align-items: center; justify-content: space-between;
         gap: 10px; margin-bottom: 15px;
     }
-    .logout-box { flex-shrink: 0; }
-    .toggle-box { flex-grow: 1; display: flex; justify-content: flex-end; }
 
-    /* [Ver 1.3 수정] 메트릭 박스 디자인 강화 */
+    /* 메트릭 박스 */
     .metric-box {
         display: flex; justify-content: space-between; align-items: center;
         background-color: #fff; border: 1px solid #eee; border-radius: 16px;
@@ -68,24 +76,19 @@ st.markdown("""
     }
     .metric-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .metric-label { font-size: 0.9rem; color: #888; font-weight: 600; margin-bottom: 8px; }
-    
-    /* 잔여 숫자 강조 */
     .metric-value-large { font-size: 2.6rem; color: #5D9CEC; font-weight: 900; line-height: 1; }
-    /* 기준 파일명 검정색 */
     .metric-value-sub { font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }
-    
     .metric-divider { width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }
 
+    /* 탭 및 기타 */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 15px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
-
     .tab-section-header {
         font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px;
         padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
     }
-
-    [data-testid="stMetricValue"] { color: #5D9CEC !important; font-weight: 800 !important; }
+    .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     
     .realtime-badge {
         background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px;
@@ -95,7 +98,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 & 유틸리티 (기존 유지)
+# 2. 구글 드라이브 & 유틸리티
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -213,34 +216,36 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 1.3)
+# 4. 메인 로직 (Ver 1.4)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
 if not st.session_state.get('login_status'):
+    # [Ver 1.4] 로그인 화면 디자인 복구
     st.markdown('<div class="login-title">옥션원 서울지사<br>연차확인</div>', unsafe_allow_html=True)
-    with st.form("login"):
-        uid = st.text_input("아이디").replace(" ", "")
-        upw = st.text_input("비밀번호", type="password")
-        if st.form_submit_button("로그인"):
-            db = load_json_file(user_db_id)
-            if uid in db and db[uid]['pw'] == upw:
-                st.session_state.login_status = True; st.session_state.user_id = uid; st.session_state.user_db = db; st.rerun()
-            else: st.error("정보를 확인해주세요.")
+    
+    with st.container():
+        # 컨테이너 안에서 깔끔하게 정렬
+        with st.form("login"):
+            uid = st.text_input("아이디", placeholder="이름을 입력하세요").replace(" ", "")
+            upw = st.text_input("비밀번호", type="password")
+            submitted = st.form_submit_button("로그인", use_container_width=True)
+            
+            if submitted:
+                db = load_json_file(user_db_id)
+                if uid in db and db[uid]['pw'] == upw:
+                    st.session_state.login_status = True; st.session_state.user_id = uid; st.session_state.user_db = db; st.rerun()
+                else: st.error("정보를 확인해주세요.")
 else:
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
-    
-    # 관리자 모드 및 사용자 전환
     target_uid = login_uid
-    st.markdown('<div class="version-badge">Ver 1.3</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 1.4</div>', unsafe_allow_html=True)
 
-    # 프로필 카드 표시 (상단)
+    # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
-    # Impersonation용 임시 uinfo
     temp_uinfo = uinfo
 
-    # 카드 렌더링
     st.markdown(f"""
     <div class="profile-card">
         <div class="card-text">
@@ -252,7 +257,7 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 1.3] 관리자 컨트롤 및 로그아웃 (한 줄 배치)
+    # 관리자 컨트롤
     if login_uinfo.get('role') == 'admin':
         st.markdown('<div class="admin-flex-row">', unsafe_allow_html=True)
         col_btn, col_tgl = st.columns([1, 1])
@@ -266,28 +271,41 @@ else:
             all_users = list(st.session_state.user_db.keys())
             target_uid = st.selectbox("사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
             uinfo = st.session_state.user_db.get(target_uid, {})
-            # 이름 영역 실시간 업데이트를 위한 트릭 (카드 재렌더링은 어렵지만 텍스트 반영)
             st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
     else:
         if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
 
-    # 갱신 데이터 미리 로드 (로직용)
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
-    # [Ver 1.3 핵심] 오늘 날짜 기준 갱신 연차 합산 로직
-    def get_auto_renewal_bonus(uid):
-        if renewal_df.empty: return 0.0
+    # [Ver 1.4 핵심] 연차 중복 방지 로직 (Logic V2)
+    def get_smart_renewal_bonus(uid, base_filename):
+        if renewal_df.empty or not base_filename: return 0.0
         me = renewal_df[renewal_df['이름'] == uid]
         if not me.empty:
             try:
+                # 1. 갱신일 파싱
                 renew_date = pd.to_datetime(me.iloc[0]['갱신일']).date()
                 today = datetime.date.today()
-                if today >= renew_date: # 오늘이 갱신일이거나 지났다면
+                
+                # 2. 기준 파일 날짜 파싱 (예: 2026_1월 -> 2026-01-31로 간주)
+                match = re.search(r'(\d{4})_(\d+)', base_filename)
+                if match:
+                    f_year, f_month = int(match.group(1)), int(match.group(2))
+                    # 해당 월의 마지막 날 계산
+                    next_month = datetime.date(f_year, f_month, 28) + datetime.timedelta(days=4)
+                    file_end_date = next_month - datetime.timedelta(days=next_month.day)
+                else:
+                    file_end_date = datetime.date(2000, 1, 1) # 알 수 없음
+
+                # 3. 로직 판정: 
+                # (오늘이 갱신일 지남?) AND (기준 파일이 갱신일보다 과거인가?)
+                # 예: 갱신 2/1, 파일 1/31 -> True (아직 파일에 반영 안됨 -> 추가)
+                # 예: 갱신 1/1, 파일 1/31 -> False (이미 파일에 반영됨 -> 추가 안 함)
+                if today >= renew_date and renew_date > file_end_date:
                     return float(me.iloc[0]['갱신개수'])
             except: pass
         return 0.0
 
-    # 탭 구성
     tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
     
     def tab_header(text): st.markdown(f'<div class="tab-section-header">{text}</div>', unsafe_allow_html=True)
@@ -306,6 +324,7 @@ else:
     with tab1:
         tab_header("현재 잔여 연차 확인")
         if monthly_files:
+            latest_fname = monthly_files[0]['name']
             df = fetch_excel(monthly_files[0]['id'])
             st.session_state.realtime_data = load_json_file(realtime_id) if realtime_id else {}
             
@@ -313,29 +332,27 @@ else:
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
                 
-                # 1. 갱신 보너스 체크 (오늘 날짜 기준)
-                bonus = get_auto_renewal_bonus(target_uid)
+                # [Ver 1.4] 스마트 중복 방지 로직 적용
+                bonus = get_smart_renewal_bonus(target_uid, latest_fname)
                 
-                # 2. 실시간 사용분 체크
                 rt_used = 0.0
                 rt_msg = ""
                 try:
-                    file_month = int(re.search(r'(\d+)월', monthly_files[0]['name']).group(1))
+                    file_month = int(re.search(r'(\d+)월', latest_fname).group(1))
                     if datetime.date.today().month > file_month and target_uid in st.session_state.realtime_data:
                         rt_used = st.session_state.realtime_data[target_uid].get('used', 0.0)
                         rt_msg = st.session_state.realtime_data[target_uid].get('details', '')
                 except: pass
 
-                # 3. 최종 계산
                 if pd.isna(base_remain):
                     final_str = "∞"
                 else:
                     total_calc = base_remain + bonus - rt_used
                     final_str = f"{total_calc}개"
-                    if bonus > 0: st.success(f"🎊 오늘 갱신된 연차 +{bonus}개가 자동 합산되었습니다!")
+                    if bonus > 0: st.success(f"🎊 갱신 연차 +{bonus}개가 자동 합산되었습니다!")
                     if rt_used > 0: st.markdown(f"<span class='realtime-badge'>📉 실시간 사용 -{rt_used}개 반영됨</span>", unsafe_allow_html=True)
 
-                render_metric_card("현재 예상 잔여", final_str, "기준 파일", monthly_files[0]['name'], is_main=True)
+                render_metric_card("현재 예상 잔여", final_str, "기준 파일", latest_fname, is_main=True)
                 if rt_msg: st.info(f"📝 **추가 내역:** {rt_msg}")
             else: st.warning("데이터가 없습니다.")
 
@@ -359,7 +376,6 @@ else:
             if not me.empty:
                 r = me.iloc[0]
                 st.info(f"📅 갱신일: **{r['갱신일']}**")
-                # [Ver 1.3] 추가 발생 숫자 색상 통일
                 st.metric("추가 발생 연차", f"+{r['갱신개수']}개")
         else: st.info("갱신 정보가 없습니다.")
 
