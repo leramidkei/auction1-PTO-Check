@@ -361,7 +361,7 @@ else:
                 <span class="user-name-highlight">{uid} {uinfo.get('title','')}</span>님 👋<br>
                 <span style="font-size: 1rem; color: #888; font-weight: normal;">오늘도 좋은 하루 되세요.</span>
             </div>
-            <img src="https://raw.githubusercontent.com/[본인_깃허브_아이디]/[저장소_이름]/main/character.png" class="character-img" alt="캐릭터">
+            <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png" class="character-img" alt="캐릭터">
         </div>
         """
         # [중요] 위 img src 주소를 본인의 깃허브 저장소 주소로 꼭 맞춰주세요!
@@ -475,3 +475,4 @@ else:
         
         if uinfo.get('role') == 'admin':
             with st.expander("🔐 관리자"): st.json(st.session_state.user_db)
+
