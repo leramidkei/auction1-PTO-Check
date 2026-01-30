@@ -1,9 +1,9 @@
-# [Ver 0.8] 옥션원 서울지사 연차확인 시스템
-# Update: 2026-01-30
+# [Ver 0.9] 옥션원 서울지사 연차확인 시스템
+# Update: 2026-01-31
 # Changes: 
-# - 파일 목록 정렬 로직 개선 (연/월 숫자 기준 내림차순)
-# - 상단 여백 축소 (헤더와 버전 정보 사이 간격 줄임)
-# - 하단 여백 확보 (내용이 바닥에 붙는 현상 해결)
+# - 이름/직함 줄바꿈 허용 (word-break: keep-all 적용)
+# - 연차 개수 NaN(비어있음)일 경우 '∞' 아이콘으로 표시
+# - 잔여 개수와 상세 내역 박스 사이 간격(Spacer) 추가
 
 import streamlit as st
 import pandas as pd
@@ -16,9 +16,10 @@ import time
 import datetime
 import re
 import os
+import math # NaN 체크용
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 0.8)
+# 1. 페이지 설정 및 CSS (Ver 0.9)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -32,11 +33,11 @@ st.markdown("""
         font-family: 'Pretendard', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 (상단 줄이고, 하단 늘림) */
+    /* 2. 메인 컨테이너 */
     .block-container {
         max-width: 480px;
-        padding-top: 3rem; /* [수정] 5rem -> 3rem (상단 간격 축소) */
-        padding-bottom: 5rem; /* [수정] 하단 여백 넉넉하게 확보 */
+        padding-top: 3rem; 
+        padding-bottom: 5rem;
         padding-left: 1.2rem;
         padding-right: 1.2rem;
         margin: auto;
@@ -97,9 +98,20 @@ st.markdown("""
         object-position: top center; 
     }
 
+    /* [Ver 0.9 수정] 이름 줄바꿈 허용 */
     .hello-text { font-size: 1rem; color: #666; margin-bottom: 4px; font-weight: 500; }
-    .name-text { font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.2; margin-bottom: 8px; }
-    .name-highlight { color: #5D9CEC; }
+    .name-text { 
+        font-size: 1.6rem; 
+        color: #333; 
+        font-weight: 900; 
+        line-height: 1.3; /* 줄 간격 조정 */
+        margin-bottom: 8px; 
+        word-break: keep-all; /* 단어 단위로 줄바꿈 */
+    }
+    .name-highlight { 
+        color: #5D9CEC; 
+        /* white-space: nowrap; 제거 -> 줄바꿈 허용 */
+    }
     .msg-text { font-size: 0.85rem; color: #999; }
 
     /* 5. 탭 스타일링 */
@@ -138,7 +150,7 @@ st.markdown("""
         align-items: center;
     }
 
-    /* 6. 버튼 및 기타 */
+    /* 6. UI 요소 */
     .stButton>button {
         width: 100%;
         border-radius: 12px;
@@ -174,6 +186,13 @@ st.markdown("""
         display: inline-block; margin-bottom: 10px;
     }
     
+    /* [Ver 0.9 추가] 상세 내역 박스 위 간격 확보용 */
+    .info-box-spacer {
+        height: 20px;
+        width: 100%;
+        display: block;
+    }
+    
     </style>
     """, unsafe_allow_html=True)
 
@@ -198,15 +217,13 @@ def get_drive_service():
         st.error(f"인증 실패: {e}")
         return None
 
-# [Ver 0.8] 정렬 키 생성 함수 (2026_1월 -> 202601)
 def get_file_sort_key(filename):
-    # 정규식으로 연도와 월 추출
     match = re.search(r'(\d{4})_(\d+)', filename)
     if match:
         year = int(match.group(1))
         month = int(match.group(2))
-        return (year, month) # 튜플로 반환하여 연도 우선, 그 다음 월 정렬
-    return (0, 0) # 매칭 안 되면 맨 뒤로
+        return (year, month)
+    return (0, 0)
 
 def get_all_files():
     service = get_drive_service()
@@ -224,10 +241,7 @@ def get_all_files():
                 elif name == "realtime_usage.json": realtime_id = f['id']
                 elif "renewal" in name or "갱신" in name: renewal_id = f['id']
                 elif ".xlsx" in name: monthly_files.append(f)
-            
-            # [Ver 0.8] 스마트 정렬 적용
             monthly_files.sort(key=lambda x: get_file_sort_key(x['name']), reverse=True)
-            
             return user_db_id, renewal_id, realtime_id, monthly_files
         except: time.sleep(1); continue
     return None, None, None, []
@@ -324,7 +338,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 0.8)
+# 4. 메인 로직 (Ver 0.9)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -354,7 +368,6 @@ else:
     uid = st.session_state.user_id
     uinfo = st.session_state.user_db.get(uid, {})
     
-    # 1. 초기 비번 변경 로직
     if uinfo.get('first_login', True):
         st.info(f"👋 {uid}님, 최초 1회 비밀번호를 변경해주세요.")
         with st.form("fc"):
@@ -369,10 +382,10 @@ else:
                     st.rerun()
                 else: st.error("비밀번호가 일치하지 않습니다.")
     else:
-        # [Ver 0.8] 버전 배지
+        # [Ver 0.9] 배지
         st.markdown("""
         <div class="version-badge-container">
-            <div class="version-badge">Ver 0.8</div>
+            <div class="version-badge">Ver 0.9</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -399,11 +412,16 @@ else:
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
         
-        # 탭 영역
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
         def tab_header(text):
             st.markdown(f'<div class="tab-section-header">{text}</div>', unsafe_allow_html=True)
+
+        # [Ver 0.9 추가] NaN을 '∞'로 변환하는 함수
+        def display_remain(val):
+            if pd.isna(val) or math.isnan(val):
+                return "∞"
+            return f"{val}개"
 
         with tab1:
             tab_header("현재 잔여 연차 확인") 
@@ -430,19 +448,27 @@ else:
                     if not me.empty:
                         excel_remain = float(me.iloc[0]['잔여'])
                         
-                        if realtime_applied and realtime_usage > 0:
-                            final_remain = excel_remain - realtime_usage
-                            st.markdown(f"<span class='realtime-badge'>📉 실시간 사용 -{realtime_usage}개 반영됨</span>", unsafe_allow_html=True)
-                            st.metric("현재 예상 잔여 연차", f"{final_remain}개")
-                            st.caption(f"기준: {latest_file['name']} 잔여 ({excel_remain}) - 이번달 사용 ({realtime_usage})")
-                            if realtime_msg: st.info(f"📝 **추가 내역:** {realtime_msg}")
+                        # NaN 체크 및 계산
+                        if pd.isna(excel_remain):
+                            final_str = "∞"
                         else:
-                            st.metric("현재 잔여 연차", f"{excel_remain}개")
-                            st.caption(f"기준 파일: {latest_file['name']}")
+                            if realtime_applied and realtime_usage > 0:
+                                final_remain = excel_remain - realtime_usage
+                                final_str = f"{final_remain}개"
+                                st.markdown(f"<span class='realtime-badge'>📉 실시간 사용 -{realtime_usage}개 반영됨</span>", unsafe_allow_html=True)
+                            else:
+                                final_str = f"{excel_remain}개"
+
+                        st.metric("현재 예상 잔여 연차", final_str)
+                        st.caption(f"기준 파일: {latest_file['name']}")
+                        
+                        # [Ver 0.9] 상세 내역 박스와의 겹침 방지용 투명 벽
+                        st.markdown('<div class="info-box-spacer"></div>', unsafe_allow_html=True)
+                        
+                        if realtime_msg: st.info(f"📝 **추가 내역:** {realtime_msg}")
                     else: st.warning("데이터가 없습니다.")
             else: st.error("엑셀 파일이 없습니다.")
             
-            # [Ver 0.8] 하단 여백 추가 (바닥에 붙는 현상 방지)
             st.markdown("<br><br>", unsafe_allow_html=True)
 
         with tab2:
@@ -456,8 +482,16 @@ else:
                     if not me.empty:
                         r = me.iloc[0]
                         c1, c2 = st.columns(2)
+                        
+                        # NaN 처리
+                        remain_val = display_remain(float(r['잔여']))
+                        
                         c1.metric("사용", f"{r['사용개수']}개")
-                        c2.metric("잔여", f"{r['잔여']}개")
+                        c2.metric("잔여", remain_val)
+                        
+                        # [Ver 0.9] 겹침 방지용 투명 벽
+                        st.markdown('<div class="info-box-spacer"></div>', unsafe_allow_html=True)
+                        
                         st.info(f"내역: {r['사용내역']}")
             
             st.markdown("<br><br>", unsafe_allow_html=True)
