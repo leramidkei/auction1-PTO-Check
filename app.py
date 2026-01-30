@@ -1,9 +1,9 @@
-# [Ver 1.0] 옥션원 서울지사 연차확인 시스템 (Final)
+# [Ver 1.1] 옥션원 서울지사 연차확인 시스템
 # Update: 2026-01-31
 # Changes: 
-# - 관리자 전용 '사용자 전환(Impersonation)' 기능 추가
-# - 로그아웃 버튼 옆 관리자 모드 토글 배치
-# - UI/UX 최종 안정화
+# - 관리자 메뉴 위치 변경 (프로필 카드 하단 이동)
+# - 로그아웃 버튼과 관리자 모드 토글 가로 정렬
+# - 관리자 사용자 전환 시 '최초 비밀번호 변경' 강제 화면 건너뛰기 적용
 
 import streamlit as st
 import pandas as pd
@@ -19,7 +19,7 @@ import os
 import math
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 1.0)
+# 1. 페이지 설정 및 CSS (Ver 1.1)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -71,7 +71,7 @@ st.markdown("""
         background-color: #fff;
         border-radius: 20px;
         overflow: hidden;
-        margin-bottom: 10px;
+        margin-bottom: 15px; /* 하단 여백 확보 */
         height: 160px; 
         border: 1px solid #f0f0f0;
     }
@@ -98,7 +98,7 @@ st.markdown("""
         object-position: top center; 
     }
 
-    /* 이름 줄바꿈 허용 및 스타일 */
+    /* 텍스트 스타일 */
     .hello-text { font-size: 1rem; color: #666; margin-bottom: 4px; font-weight: 500; }
     .name-text { 
         font-size: 1.6rem; 
@@ -112,7 +112,7 @@ st.markdown("""
     .msg-text { font-size: 0.85rem; color: #999; }
 
     /* 5. 탭 스타일링 */
-    .stTabs { margin-top: -10px; }
+    .stTabs { margin-top: 10px; }
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         margin-bottom: 15px; 
@@ -160,13 +160,18 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #4A89DC; }
 
-    .logout-btn-area button {
+    /* 로그아웃 버튼 (회색, 작게) */
+    div[data-testid="column"] .stButton>button {
         background-color: #f1f3f5 !important;
         color: #868e96 !important;
         font-size: 0.8rem !important;
         padding: 0.5rem !important;
-        margin-top: 0px;
-        margin-bottom: 0px;
+        border-radius: 8px !important;
+        height: auto !important;
+    }
+    div[data-testid="column"] .stButton>button:hover {
+        background-color: #e9ecef !important;
+        color: #495057 !important;
     }
 
     .login-title {
@@ -193,7 +198,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증
+# 2. 구글 드라이브 인증 (기존 로직)
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -258,7 +263,7 @@ def save_user_db(file_id, data):
     except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 로직
+# 3. 데이터 파싱 로직 (기존 로직)
 # ==============================================================================
 def parse_attendance(file_content):
     try:
@@ -332,7 +337,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 1.0)
+# 4. 메인 로직 (Ver 1.1)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -359,60 +364,27 @@ if not st.session_state.login_status:
 
 # B. 메인 화면
 else:
-    # 1. 로그인한 실제 사용자 (admin 여부 확인용)
+    # 1. 실제 로그인 사용자 정보
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
     
-    # 2. [Ver 1.0] 관리자 모드 로직 (사용자 전환)
+    # 2. [Ver 1.1 수정] 사용자 전환(Admin) 로직 - 상단에서 결정
     target_uid = login_uid # 기본은 본인
     
-    # 관리자인 경우에만 UI 표시
-    if login_uinfo.get('role') == 'admin':
-        # [Ver 1.0] 버전 배지
-        st.markdown("""
-        <div class="version-badge-container">
-            <div class="version-badge">Ver 1.0 (Admin)</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # 관리자 컨트롤 패널
-        c_logout, c_admin = st.columns([1, 2])
-        
-        with c_logout:
-            st.markdown('<div class="logout-btn-area">', unsafe_allow_html=True)
-            if st.button("로그아웃"): 
-                st.session_state.login_status = False
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-        with c_admin:
-            # 관리자 전용 체크박스 & 콤보박스
-            is_admin_mode = st.checkbox("🔧 관리자 모드 (사용자 전환)", value=False)
-            if is_admin_mode:
-                all_users = list(st.session_state.user_db.keys())
-                target_uid = st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), label_visibility="collapsed")
-    else:
-        # 일반 사용자 화면
-        st.markdown("""
-        <div class="version-badge-container">
-            <div class="version-badge">Ver 1.0</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        c_logout, _ = st.columns([1, 2])
-        with c_logout:
-            st.markdown('<div class="logout-btn-area">', unsafe_allow_html=True)
-            if st.button("로그아웃"): 
-                st.session_state.login_status = False
-                st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+    # 세션 상태에 관리자 모드 관련 키가 있으면 읽어옴
+    if st.session_state.get('admin_mode_toggle') and login_uinfo.get('role') == 'admin':
+        # 선택된 사용자가 있으면 그 사용자로, 없으면 본인으로
+        target_uid = st.session_state.get('impersonate_user', login_uid)
 
     # 3. 데이터 기준 설정 (target_uid 기준)
-    # 이제부터 모든 데이터(uinfo, 연차 등)는 선택된 사용자(target_uid) 기준으로 가져옴
     uinfo = st.session_state.user_db.get(target_uid, {})
     
-    # 4. 초기 비번 변경 로직 (선택된 사용자 기준)
-    if uinfo.get('first_login', True):
+    # 4. 초기 비번 변경 로직 (Ver 1.1: 관리자 모드일 땐 무조건 패스)
+    # 조건: (최초로그인 대상) AND (본인 로그인일 경우)에만 비번 변경 강제
+    is_first_login = uinfo.get('first_login', True)
+    is_impersonating = (login_uid != target_uid) # 관리자가 다른 사람 보는 중인가?
+
+    if is_first_login and not is_impersonating:
         st.info(f"👋 {target_uid}님, 최초 1회 비밀번호를 변경해주세요.")
         with st.form("fc"):
             p1 = st.text_input("새 비밀번호", type="password")
@@ -422,13 +394,18 @@ else:
                     st.session_state.user_db[target_uid].update({"pw": p1, "first_login": False})
                     save_user_db(user_db_id, st.session_state.user_db)
                     st.success("변경 완료. 다시 로그인해주세요.")
-                    # 본인 비번 변경 시에만 로그아웃 처리
-                    if target_uid == login_uid:
-                        for k in list(st.session_state.keys()): del st.session_state[k]
+                    for k in list(st.session_state.keys()): del st.session_state[k]
                     st.rerun()
                 else: st.error("비밀번호가 일치하지 않습니다.")
     else:
-        # 프로필 카드 (선택된 사용자 정보 표시)
+        # [Ver 1.1] 배지 및 프로필 카드
+        st.markdown("""
+        <div class="version-badge-container">
+            <div class="version-badge">Ver 1.1</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 프로필 카드
         st.markdown(f"""
         <div class="profile-card">
             <div class="card-text">
@@ -441,7 +418,33 @@ else:
             </div>
         </div>
         """, unsafe_allow_html=True)
+
+        # [Ver 1.1 수정] 컨트롤 패널 (로그아웃 | 관리자 모드) - 카드 하단 배치
+        # 관리자일 경우
+        if login_uinfo.get('role') == 'admin':
+            c_logout, c_toggle = st.columns([1, 2])
+            with c_logout:
+                if st.button("로그아웃"): 
+                    st.session_state.login_status = False
+                    st.rerun()
+            with c_toggle:
+                # 관리자 모드 토글 (key를 사용하여 상태 유지)
+                st.checkbox("🔧 관리자 모드", key="admin_mode_toggle")
+            
+            # 관리자 모드 켜졌을 때만 선택창 보임 (바로 아래에 배치)
+            if st.session_state.get("admin_mode_toggle"):
+                all_users = list(st.session_state.user_db.keys())
+                # 선택 시 바로 target_uid에 반영되도록 key 설정
+                st.selectbox("조회할 사용자 선택", all_users, 
+                             index=all_users.index(target_uid) if target_uid in all_users else 0,
+                             key="impersonate_user")
+        else:
+            # 일반 사용자일 경우 (로그아웃만)
+            if st.button("로그아웃"): 
+                st.session_state.login_status = False
+                st.rerun()
         
+        # 탭 영역
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
         def tab_header(text):
@@ -464,7 +467,7 @@ else:
                 try:
                     file_month = int(re.search(r'(\d+)월', latest_file['name']).group(1))
                     current_month = datetime.datetime.now().month
-                    # 실시간 데이터도 선택된 사용자 기준
+                    # 실시간 데이터도 target_uid 기준
                     if current_month > file_month and target_uid in st.session_state.realtime_data:
                         rt_info = st.session_state.realtime_data[target_uid]
                         realtime_usage = rt_info.get('used', 0.0)
@@ -541,8 +544,11 @@ else:
 
         with tab4:
             tab_header("비밀번호 변경") 
-            # 관리자가 다른 사람의 비밀번호도 변경 가능하게 함 (주의 필요)
-            st.caption(f"현재 선택된 사용자: **{target_uid}**")
+            
+            # 관리자 모드일 경우 안내 문구 변경
+            if is_impersonating:
+                st.warning(f"⚠️ 현재 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
+            
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
                 p2 = st.text_input("확인", type="password")
@@ -550,7 +556,7 @@ else:
                     if p1 == p2 and p1:
                         st.session_state.user_db[target_uid].update({"pw": p1, "first_login": False})
                         save_user_db(user_db_id, st.session_state.user_db)
-                        st.success(f"{target_uid}님의 비밀번호가 변경되었습니다.")
+                        st.success("저장되었습니다.")
                     else: st.error("비밀번호가 일치하지 않습니다.")
             
             st.markdown("<br><br>", unsafe_allow_html=True)
