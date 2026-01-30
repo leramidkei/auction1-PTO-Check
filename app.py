@@ -11,7 +11,7 @@ import re
 import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (캐릭터 50% 확대 & 탭 높이 고정)
+# 1. 페이지 설정 및 CSS (캐릭터 비율 해제 & 탭 높이 강력 고정)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -23,10 +23,10 @@ st.markdown("""
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 */
+    /* 2. 메인 컨테이너 (상단 여백 더 확보) */
     .block-container {
         max-width: 480px;
-        padding-top: 3rem;
+        padding-top: 5rem; /* 탭 잘림 방지를 위해 넉넉히 */
         padding-bottom: 2rem;
         padding-left: 1.2rem;
         padding-right: 1.2rem;
@@ -40,7 +40,7 @@ st.markdown("""
         .block-container { 
             max-width: 100%; 
             box-shadow: none; 
-            padding-top: 2rem !important;
+            padding-top: 4rem !important; /* 모바일에서도 충분히 확보 */
             padding-left: 1rem;
             padding-right: 1rem;
             border-radius: 0;
@@ -58,12 +58,11 @@ st.markdown("""
         margin-top: 2rem;
     }
 
-    /* 4. [핵심] 헤더 레이아웃 (캐릭터 꽉 채우기 + 텍스트 중앙 정렬) */
+    /* 4. [핵심] 헤더 레이아웃 (55:45 분할 & 완전 중앙 정렬) */
     .header-wrapper {
         display: flex;
-        flex-direction: row;        /* 가로 배치 */
-        align-items: center;        /* [중요] 세로 중앙 정렬 */
-        justify-content: space-between;
+        flex-direction: row;
+        align-items: center; /* 세로 중앙 정렬 (이미지가 길어져도 텍스트는 가운데) */
         width: 100%;
         margin-bottom: 1.5rem;
         border-bottom: 1px solid #f0f0f0;
@@ -73,13 +72,15 @@ st.markdown("""
     /* 왼쪽 텍스트 영역 (55%) */
     .header-text-part {
         width: 55%;
-        padding-right: 10px;
+        padding-right: 5px;
         display: flex;
         flex-direction: column;
         justify-content: center; /* 세로 중앙 */
+        align-items: center;     /* [요청반영] 가로 중앙 */
+        text-align: center;      /* 글자 자체도 가운데 정렬 */
     }
 
-    /* 오른쪽 이미지 영역 (45%) - 화면 절반 가까이 채움 */
+    /* 오른쪽 이미지 영역 (45%) */
     .header-img-part {
         width: 45%;
         display: flex;
@@ -87,13 +88,12 @@ st.markdown("""
         align-items: center;
     }
 
-    /* 이미지 스타일: 부모 영역을 100% 꽉 채움 */
+    /* 이미지 스타일: 너비 100% (높이는 자동 증가) */
     .custom-char-img {
-        width: 100%;
-        height: auto;
-        object-fit: contain; /* 비율 유지하며 꽉 채우기 */
+        width: 100%;  /* 부모(45%)를 꽉 채움 */
+        height: auto; /* 비율대로 세로로 길어짐 */
+        object-fit: contain;
         display: block;
-        /* filter: drop-shadow(5px 5px 10px rgba(0,0,0,0.1)); 그림자 효과 (선택) */
     }
 
     /* 텍스트 스타일 */
@@ -102,13 +102,13 @@ st.markdown("""
         font-weight: bold; 
         color: #333; 
         line-height: 1.3; 
-        white-space: nowrap; /* 줄바꿈 방지 */
+        white-space: nowrap; 
     }
     .name-highlight { 
         color: #5D9CEC; 
         font-size: 1.5rem; 
         font-weight: 900; 
-        margin-bottom: 4px;
+        margin-bottom: 6px;
         white-space: nowrap;
     }
     .greeting-sub { 
@@ -119,9 +119,9 @@ st.markdown("""
 
     /* 로그아웃 버튼 스타일 */
     .logout-btn-custom button {
-        margin-top: 10px;
-        padding: 0.4rem 1rem !important;
-        font-size: 0.8rem !important;
+        margin-top: 12px;
+        padding: 0.5rem 1.2rem !important;
+        font-size: 0.85rem !important;
         width: auto !important;
         background-color: #888 !important;
         border-radius: 20px !important;
@@ -130,11 +130,12 @@ st.markdown("""
         background-color: #666 !important;
     }
 
-    /* 5. [핵심] 탭 높이 고정용 투명 벽돌 */
+    /* 5. [핵심] 탭 높이 고정용 투명 쿠션 (높이 30px) */
     .tab-spacer {
-        height: 25px; /* 모든 탭의 시작 높이를 이걸로 통일 */
+        height: 30px; /* 충분한 높이 확보 */
         width: 100%;
         display: block;
+        margin-bottom: 10px;
     }
 
     /* 6. 기타 UI 요소 */
@@ -348,8 +349,7 @@ else:
                     st.rerun()
                 else: st.error("비밀번호 불일치")
     else:
-        # [핵심] 상단 레이아웃 (HTML Flexbox) - 텍스트 55%, 이미지 45%
-        # align-items: center로 텍스트 수직 중앙 정렬 달성
+        # [레이아웃] 텍스트 55% (중앙정렬), 이미지 45% (높이 제한 없음)
         st.markdown(f"""
         <div class="header-wrapper">
             <div class="header-text-part">
@@ -365,21 +365,17 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 로그아웃 버튼 (텍스트 영역 바로 아래에 배치하는 효과)
-        # HTML 안에 버튼 기능을 넣기 어려우므로 Streamlit 버튼을 사용하되, CSS로 스타일링
         if st.button("로그아웃", key="logout_top"): 
             st.session_state.login_status = False
             st.rerun()
         
-        # 탭 시작
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
-        # [핵심] 모든 탭의 시작 높이를 강제로 맞추는 '투명 벽돌(Spacer)'
-        # 이게 있으면 Selectbox가 있든 없든 모든 내용이 25px 아래에서 시작합니다.
+        # [탭 고정용] 모든 탭의 맨 위에 30px 투명 쿠션을 깔아줌
         spacer_html = '<div class="tab-spacer"></div>'
 
         with tab1:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 공백 삽입
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if monthly_files:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
@@ -417,10 +413,10 @@ else:
             else: st.error("파일 없음")
 
         with tab2:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 공백 삽입
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if monthly_files:
                 opts = {f['name']: f['id'] for f in monthly_files}
-                # 라벨 숨김 처리로 높이 간섭 최소화
+                # 라벨 숨겨서 높이 절약 + 스페이서로 높이 맞춤
                 sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
                 if sel:
                     df = fetch_excel(opts[sel])
@@ -433,7 +429,7 @@ else:
                         st.info(f"내역: {r['사용내역']}")
 
         with tab3:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 공백 삽입
+            st.markdown(spacer_html, unsafe_allow_html=True)
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
                 me = df[df['이름'] == uid]
@@ -449,7 +445,7 @@ else:
             else: st.info("정보 없음")
 
         with tab4:
-            st.markdown(spacer_html, unsafe_allow_html=True) # 공백 삽입
+            st.markdown(spacer_html, unsafe_allow_html=True)
             st.write("비밀번호 변경")
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
