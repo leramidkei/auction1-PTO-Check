@@ -11,139 +11,166 @@ import re
 import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (파스텔톤 UI & 모바일 최적화 & 캐릭터 크기 수정)
+# 1. 페이지 설정 및 CSS (캐릭터 레이아웃 & 탭 위치 통일)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
 st.markdown("""
     <style>
-    /* 1. 전체 배경 및 폰트 */
+    /* 1. 기본 폰트 및 배경 */
     [data-testid="stAppViewContainer"] {
-        background-color: #FDFDFD; /* 아주 밝은 화이트톤 */
-        font-family: 'Pretendard', sans-serif;
+        background-color: #FDFDFD;
+        font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, 'Helvetica Neue', 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 (상단 여백 문제 해결) */
+    /* 2. 메인 컨테이너 스타일 */
     .block-container {
         max-width: 480px;
-        padding-top: 5rem; /* 데스크탑 상단 여백 */
+        padding-top: 4rem;
         padding-bottom: 2rem;
         padding-left: 1.5rem;
         padding-right: 1.5rem;
         margin: auto;
         background-color: #ffffff;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-        border-radius: 20px;
-        min-height: 90vh;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+        border-radius: 24px;
+        min-height: 92vh;
     }
-    
-    /* [수정] 모바일 상단 잘림 해결을 위해 padding-top 대폭 증가 */
     @media (max-width: 480px) { 
         .block-container { 
             max-width: 100%; 
             box-shadow: none; 
-            padding-top: 6rem !important; /* 여기를 늘렸습니다 (4rem -> 6rem) */
-            padding-left: 1rem;
-            padding-right: 1rem;
+            padding-top: 3rem !important;
+            padding-left: 1.2rem;
+            padding-right: 1.2rem;
             border-radius: 0;
         } 
     }
 
-    /* 3. 로그인 타이틀 (두 줄, 파스텔톤) */
+    /* 3. 로그인 타이틀 */
     .login-title {
         font-size: 1.8rem;
         font-weight: 800;
-        color: #5D9CEC; /* 파스텔 블루 */
+        color: #5D9CEC;
         text-align: center;
-        line-height: 1.3;
-        margin-bottom: 2rem;
+        line-height: 1.35;
+        margin-bottom: 2.5rem;
         margin-top: 1rem;
     }
 
     /* 4. 버튼 스타일 */
     .stButton>button {
         width: 100%;
-        border-radius: 12px;
-        font-weight: bold;
+        border-radius: 14px;
+        font-weight: 700;
         background-color: #5D9CEC; 
         color: white;
         border: none;
-        padding: 0.8rem 0;
+        padding: 0.9rem 0;
         font-size: 1rem;
+        transition: all 0.2s ease-in-out;
     }
-    .stButton>button:hover { background-color: #4A89DC; }
+    .stButton>button:hover { background-color: #4A89DC; transform: scale(1.01); }
+    /* 로그아웃 버튼만 예외적으로 크기 줄임 */
+    [data-testid="column"] .stButton>button {
+        padding: 0.6rem 0;
+        font-size: 0.9rem;
+        width: auto; /* 내용에 맞게 너비 자동 조절 */
+        padding-left: 1.2rem;
+        padding-right: 1.2rem;
+    }
 
     /* 5. 메트릭(숫자) 스타일 */
     [data-testid="stMetricValue"] {
-        font-size: 2rem;
+        font-size: 2.4rem;
         font-weight: 800;
         color: #5D9CEC; 
     }
     [data-testid="stMetricLabel"] {
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         color: #888;
+        font-weight: 600;
     }
 
-    /* 6. 헤더 영역 (인사말 + 캐릭터) 스타일 [대폭 수정] */
-    .greeting-container {
-        display: flex;
-        justify-content: space-between;
-        align-items: center; /* 수직 중앙 정렬 */
-        margin-bottom: 1.5rem;
-        gap: 10px; /* 텍스트와 이미지 사이 간격 */
-    }
+    /* 6. 상단 헤더 (인사말 + 캐릭터) 레이아웃 수정 */
     .greeting-text {
-        font-size: 1.2rem;
+        font-size: 1.15rem;
         font-weight: bold;
-        line-height: 1.4;
+        line-height: 1.5;
         color: #333;
-        flex: 1; /* 남은 공간 차지 */
+        margin-bottom: 1rem;
     }
     .user-name-highlight {
         color: #5D9CEC;
-        font-size: 1.4rem;
+        font-size: 1.5rem;
         font-weight: 900;
     }
-    
-    /* [수정] 캐릭터 이미지 크기 키움 */
-    .character-img {
-        width: 130px; /* 기존 100px -> 130px로 확대 */
-        min-width: 130px; /* 화면이 줄어도 찌그러지지 않게 고정 */
-        height: auto;
-        object-fit: contain;
+    .sub-greeting {
+        font-size: 0.95rem; 
+        color: #999; 
+        font-weight: normal;
     }
     
-    /* 모바일 미세 조정 */
-    @media (max-width: 400px) {
-        .character-img { 
-            width: 110px; /* 아주 작은 폰에서는 살짝 줄임 */
-            min-width: 110px;
-        }
-        .greeting-text { font-size: 1.1rem; }
+    /* [핵심 수정] 캐릭터 이미지 스타일: 오른쪽 컬럼에 꽉 차게 */
+    .character-img-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100%;
+    }
+    .character-img {
+        width: 100%;         /* 컨테이너 너비에 맞춤 */
+        max-width: 180px;    /* 너무 커지지 않게 최대폭 제한 (원하는 만큼 조절 가능) */
+        height: auto;        /* 비율 유지 */
+        object-fit: contain; /* 잘리지 않고 다 보이게 */
+        display: block;
     }
 
-    /* 7. 배지 스타일 */
+    /* 7. 탭 및 배지 스타일 */
     .realtime-badge {
         background-color: #FFF0F0;
         color: #FF6B6B;
-        padding: 4px 8px;
-        border-radius: 8px;
-        font-size: 0.8rem;
-        font-weight: bold;
-        margin-bottom: 5px;
+        padding: 5px 10px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        margin-bottom: 12px;
         display: inline-block;
     }
     
-    /* 탭 스타일 */
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] { height: 45px; border-radius: 10px; font-weight: 600; }
-    .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 1.5rem; }
+    .stTabs [data-baseweb="tab"] { 
+        height: 48px; 
+        border-radius: 12px; 
+        font-weight: 700; 
+        font-size: 1rem;
+        color: #999;
+    }
+    .stTabs [aria-selected="true"] { 
+        color: #5D9CEC !important; 
+        background-color: #F0F8FF !important; 
+    }
 
+    /* [핵심 수정] 탭 내용 상단 위치 통일을 위한 여백 클래스 */
+    .tab-content-spacer {
+        height: 1.5rem; /* 모든 탭 상단에 동일한 높이의 투명 공간 확보 */
+        width: 100%;
+        display: block;
+        content: "";
+    }
+    
+    /* 기타 입력창 스타일 */
+    .stTextInput > div > div > input {
+        border-radius: 12px;
+        padding: 0.8rem 1rem;
+        border: 1px solid #EEE;
+        background-color: #FAFAFA;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 (기존 유지)
+# 2. 구글 드라이브 인증 및 파일 관리
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -208,7 +235,7 @@ def save_user_db(file_id, data):
     except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 (기존 유지)
+# 3. 데이터 파싱 로직
 # ==============================================================================
 def parse_attendance(file_content):
     try:
@@ -298,7 +325,6 @@ if 'user_db' not in st.session_state:
 if 'login_status' not in st.session_state: st.session_state.login_status = False
 
 if not st.session_state.login_status:
-    # [수정] 로그인 타이틀 두 줄 처리 및 CSS 적용
     st.markdown('<div class="login-title">옥션원 서울지사<br>연차확인</div>', unsafe_allow_html=True)
     with st.form("login"):
         uid = st.text_input("아이디").replace(" ", "")
@@ -325,27 +351,37 @@ else:
                     st.rerun()
                 else: st.error("비밀번호 불일치")
     else:
-        # [수정] 캐릭터 크기 확대 & 레이아웃 안정화 (min-width 적용)
-        header_html = f"""
-        <div class="greeting-container">
+        # [핵심 수정] 상단 레이아웃 2분할 (왼쪽: 텍스트, 오른쪽: 캐릭터 이미지 크게)
+        col1, col2 = st.columns([1.4, 1]) # 비율 조정 (왼쪽을 조금 더 넓게)
+        
+        with col1:
+            st.markdown(f"""
             <div class="greeting-text">
                 반갑습니다,<br>
                 <span class="user-name-highlight">{uid} {uinfo.get('title','')}</span>님 👋<br>
-                <span style="font-size: 0.95rem; color: #888; font-weight: normal;">오늘도 좋은 하루 되세요.</span>
+                <span class="sub-greeting">오늘도 좋은 하루 되세요.</span>
             </div>
-            <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png" class="character-img" alt="캐릭터">
-        </div>
-        """
-        st.markdown(header_html, unsafe_allow_html=True)
-        
-        # 로그아웃 버튼
-        if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
-        
+            """, unsafe_allow_html=True)
+            # 로그아웃 버튼을 텍스트 바로 아래 배치
+            if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
+
+        with col2:
+            # 캐릭터 이미지를 오른쪽 컬럼에 꽉 차게 배치
+            st.markdown(f"""
+            <div class="character-img-container">
+                <img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png" class="character-img" alt="캐릭터">
+            </div>
+            """, unsafe_allow_html=True)
+            
         st.divider()
         
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
+        # [핵심 수정] 모든 탭 상단에 동일한 투명 여백 삽입
+        spacer_html = '<div class="tab-content-spacer"></div>'
+
         with tab1:
+            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
             if monthly_files:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
@@ -383,6 +419,7 @@ else:
             else: st.error("파일 없음")
 
         with tab2:
+            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
             if monthly_files:
                 opts = {f['name']: f['id'] for f in monthly_files}
                 sel = st.selectbox("월 선택", list(opts.keys()))
@@ -397,6 +434,7 @@ else:
                         st.info(f"내역: {r['사용내역']}")
 
         with tab3:
+            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
                 me = df[df['이름'] == uid]
@@ -412,6 +450,7 @@ else:
             else: st.info("정보 없음")
 
         with tab4:
+            st.markdown(spacer_html, unsafe_allow_html=True) # 여백 적용
             st.write("비밀번호 변경")
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
