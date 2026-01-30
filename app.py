@@ -116,8 +116,15 @@ def load_excel_by_id(file_id, is_renewal=False):
 # (로그인 및 사용자 DB 부분은 이전과 동일)
 if 'user_db' not in st.session_state:
     st.session_state.user_db = {
-        "a": {"pw": "1234", "role": "admin", "first_login": True},
-        "b": {"pw": "1234", "role": "user", "first_login": True},
+        "김상호": {"pw": "1234", "과장": "admin", "first_login": True},
+        "정다은": {"pw": "1234", "관리이사": "s-user", "first_login": True},
+        "고정융": {"pw": "1234", "관리이사": "user", "first_login": True},
+        "강원길": {"pw": "1234", "팀장": "user", "first_login": True},
+        "김사길": {"pw": "1234", "팀장": "user", "first_login": True},
+        "문경남": {"pw": "1234", "과장": "user", "first_login": True},
+        "최향자": {"pw": "1234", "과장": "user", "first_login": True},
+        "김강민": {"pw": "1234", "사원": "user", "first_login": True},
+        "김동준": {"pw": "1234", "사원": "user", "first_login": True},
         # ... 추가
     }
 if 'login_status' not in st.session_state: st.session_state.login_status = False
@@ -178,4 +185,5 @@ else:
             st.info("갱신 정보 파일(renewal_info.xlsx)이 폴더에 없습니다.")
             
     with tab4:
+
         st.write("정보수정 탭")
