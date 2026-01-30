@@ -1,9 +1,9 @@
-# [Ver 0.6] 옥션원 서울지사 연차확인 시스템
+# [Ver 0.7] 옥션원 서울지사 연차확인 시스템
 # Update: 2026-01-30
 # Changes: 
-# - 버전 배지 위치 이동 (이미지 겹침 해결)
-# - 탭 상단 흔들림 근본 해결 (공통 헤더 타이틀 도입)
-# - 프로필 카드 레이아웃 안정화
+# - 상단 여백(Safe Area) 대폭 확대 -> 버전 정보 짤림 방지
+# - 로그아웃 버튼과 탭 사이 간격 최소화 (불필요한 공백 제거)
+# - CSS 최적화
 
 import streamlit as st
 import pandas as pd
@@ -18,13 +18,13 @@ import re
 import os
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 0.6)
+# 1. 페이지 설정 및 CSS (Ver 0.7)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
 st.markdown("""
     <style>
-    /* 1. 폰트 및 기본 배경 */
+    /* 1. 폰트 및 배경 */
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
     
     [data-testid="stAppViewContainer"] {
@@ -32,10 +32,10 @@ st.markdown("""
         font-family: 'Pretendard', sans-serif;
     }
 
-    /* 2. 메인 컨테이너 */
+    /* 2. 메인 컨테이너 (상단 여백 2배로 늘림: 짤림 방지) */
     .block-container {
         max-width: 480px;
-        padding-top: 2rem;
+        padding-top: 5rem; /* [수정] 2rem -> 5rem (안전거리 확보) */
         padding-bottom: 2rem;
         padding-left: 1.2rem;
         padding-right: 1.2rem;
@@ -46,12 +46,12 @@ st.markdown("""
         min-height: 95vh;
     }
 
-    /* 3. [Ver 0.6 수정] 버전 배지 (카드 밖으로 이동) */
+    /* 3. 버전 배지 */
     .version-badge-container {
         width: 100%;
         display: flex;
-        justify-content: flex-end; /* 우측 정렬 */
-        margin-bottom: 10px; /* 카드와 간격 띄우기 */
+        justify-content: flex-end; 
+        margin-bottom: 5px; 
     }
     .version-badge {
         background-color: #f1f3f5;
@@ -63,14 +63,14 @@ st.markdown("""
         font-family: monospace;
     }
 
-    /* 4. 프로필 카드 (Grid Layout) */
+    /* 4. 프로필 카드 */
     .profile-card {
         display: grid;
         grid-template-columns: 1.4fr 1fr; 
         background-color: #fff;
         border-radius: 20px;
         overflow: hidden;
-        margin-bottom: 15px;
+        margin-bottom: 10px; /* [수정] 카드 아래 여백 줄임 */
         height: 160px; 
         border: 1px solid #f0f0f0;
     }
@@ -102,7 +102,10 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #999; }
 
-    /* 5. 탭 스타일링 */
+    /* 5. 탭 스타일링 (간격 축소 적용) */
+    .stTabs {
+        margin-top: -10px; /* [수정] 탭 전체를 위로 당김 */
+    }
     .stTabs [data-baseweb="tab-list"] { 
         gap: 8px; 
         margin-bottom: 15px; 
@@ -110,7 +113,7 @@ st.markdown("""
         position: sticky;
         top: 0;
         z-index: 10;
-        padding-top: 10px;
+        padding-top: 5px;
     }
     .stTabs [data-baseweb="tab"] { 
         height: 44px; 
@@ -124,7 +127,7 @@ st.markdown("""
         background-color: #F0F8FF !important; 
     }
 
-    /* [핵심] 탭 내부 공통 헤더 스타일 (높이 고정의 핵심) */
+    /* 탭 헤더 타이틀 */
     .tab-section-header {
         font-size: 1rem;
         font-weight: 700;
@@ -133,12 +136,12 @@ st.markdown("""
         padding-left: 5px;
         border-left: 4px solid #5D9CEC;
         line-height: 1.2;
-        height: 24px; /* 높이 강제 고정 */
+        height: 24px;
         display: flex;
         align-items: center;
     }
 
-    /* 6. 공통 컴포넌트 */
+    /* 6. 버튼 및 기타 */
     .stButton>button {
         width: 100%;
         border-radius: 12px;
@@ -151,12 +154,14 @@ st.markdown("""
     }
     .stButton>button:hover { background-color: #4A89DC; }
 
+    /* 로그아웃 버튼 영역 최적화 */
     .logout-btn-area button {
         background-color: #f1f3f5 !important;
         color: #868e96 !important;
         font-size: 0.8rem !important;
         padding: 0.5rem !important;
-        margin-top: 10px;
+        margin-top: 0px; /* [수정] 상단 여백 제거 */
+        margin-bottom: 0px; /* [수정] 하단 여백 제거 */
     }
 
     .login-title {
@@ -177,7 +182,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# 2. 구글 드라이브 인증 (기존 로직 유지)
+# 2. 구글 드라이브 인증 (기존 로직)
 # ==============================================================================
 try:
     FOLDER_ID = st.secrets["FOLDER_ID"]
@@ -236,7 +241,7 @@ def save_user_db(file_id, data):
     except: return False
 
 # ==============================================================================
-# 3. 데이터 파싱 로직 (기존 로직 유지)
+# 3. 데이터 파싱 로직 (기존 로직)
 # ==============================================================================
 def parse_attendance(file_content):
     try:
@@ -310,7 +315,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 0.6)
+# 4. 메인 로직 (Ver 0.7)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -355,10 +360,10 @@ else:
                     st.rerun()
                 else: st.error("비밀번호가 일치하지 않습니다.")
     else:
-        # [Ver 0.6] 버전 배지 (카드 위, 우측 상단 배치)
+        # [Ver 0.7] 버전 배지
         st.markdown("""
         <div class="version-badge-container">
-            <div class="version-badge">Ver 0.6</div>
+            <div class="version-badge">Ver 0.7</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -376,7 +381,7 @@ else:
         </div>
         """, unsafe_allow_html=True)
 
-        # 로그아웃 버튼 (카드 아래)
+        # 로그아웃 버튼 (카드와 탭 사이 간격 축소)
         c_logout, _ = st.columns([1, 2])
         with c_logout:
             st.markdown('<div class="logout-btn-area">', unsafe_allow_html=True)
@@ -385,18 +390,16 @@ else:
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
         
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        # [수정] 공백 div 제거하고 바로 탭 시작
         
         # 탭 영역
         tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
         
-        # [Ver 0.6 핵심] 탭별 '공통 헤더' 적용 함수
-        # 이 헤더가 모든 탭의 시작 높이를 강제로 통일시킵니다.
         def tab_header(text):
             st.markdown(f'<div class="tab-section-header">{text}</div>', unsafe_allow_html=True)
 
         with tab1:
-            tab_header("현재 잔여 연차 확인") # 공통 헤더
+            tab_header("현재 잔여 연차 확인") 
             if monthly_files:
                 latest_file = monthly_files[0]
                 df = fetch_excel(latest_file['id'])
@@ -433,7 +436,7 @@ else:
             else: st.error("엑셀 파일이 없습니다.")
 
         with tab2:
-            tab_header("월별 사용 내역 조회") # 공통 헤더 (셀렉트박스보다 위에 위치)
+            tab_header("월별 사용 내역 조회") 
             if monthly_files:
                 opts = {f['name']: f['id'] for f in monthly_files}
                 sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
@@ -448,7 +451,7 @@ else:
                         st.info(f"내역: {r['사용내역']}")
 
         with tab3:
-            tab_header("연차 갱신 및 발생 내역") # 공통 헤더
+            tab_header("연차 갱신 및 발생 내역") 
             if renewal_id:
                 df = fetch_excel(renewal_id, True)
                 me = df[df['이름'] == uid]
@@ -464,7 +467,7 @@ else:
             else: st.info("갱신 정보가 없습니다.")
 
         with tab4:
-            tab_header("비밀번호 변경") # 공통 헤더
+            tab_header("비밀번호 변경") 
             with st.form("pw_chg"):
                 p1 = st.text_input("새 비번", type="password")
                 p2 = st.text_input("확인", type="password")
