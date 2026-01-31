@@ -1,9 +1,11 @@
-# [Ver 3.8] 옥션원 서울지사 연차확인 시스템 (Smart Date Parser)
+# [Ver 3.9] 옥션원 서울지사 연차확인 시스템 (Keyword Expansion & Special Rules)
 # Update: 2026-02-01
 # Changes: 
-# - [Feature] 실시간 데이터 텍스트("19일, 20일")를 파싱하여 오늘 날짜 기준 '사용 완료' vs '사용 예정' 구분 표시
-# - [UX] 사용자에게 남은 연차가 '예정된 휴가'를 포함하여 차감된 것임을 명확히 인지시킴
-# - [System] 기존 3.7의 모든 기능(보안, 시간, 레이아웃) 유지
+# - [Parser] 엑셀 파싱 시 '연차' 외에 '휴가' 키워드도 1.0일 사용으로 인식하도록 수정
+# - [Special Logic] 사용자 '김동준'에 대한 1년 미만 근속자 특수 연차 규칙 적용
+#   1) 2026-02-01 ~ 2026-06-01: 매월 1일 +1개 자동 발생
+#   2) 2026-07-01: 1년 만근 시 +15개 발생 및 안내 문구 출력
+# - [UI] 김동준 님 갱신 탭에 파란색 안내 문구 추가
 
 import streamlit as st
 import pandas as pd
@@ -22,7 +24,7 @@ import hashlib
 from dateutil import parser
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 3.8)
+# 1. 페이지 설정 및 CSS
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -40,7 +42,6 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    /* 모바일 버튼 가로 정렬 강제 */
     @media only screen and (max-width: 640px) {
         div[data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
@@ -59,7 +60,6 @@ st.markdown("""
         }
     }
 
-    /* 관리자 토글 디자인 */
     .stToggle {
         background-color: #f8f9fa;
         border: 1px solid #e9ecef;
@@ -73,14 +73,12 @@ st.markdown("""
     div[data-testid="stWidgetLabel"] { margin-right: 8px; padding-bottom: 0px !important; }
     .stToggle label p { font-weight: 700; color: #495057; font-size: 0.95rem; margin-bottom: 0px; }
 
-    /* 탭 헤더 */
     .tab-section-header {
         font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px;
         padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
     }
     .universal-spacer { width: 100%; height: 20px !important; margin-bottom: 10px !important; display: block; visibility: hidden; }
 
-    /* 메트릭 박스 */
     .metric-box {
         display: flex; justify-content: space-between; align-items: center;
         background-color: #fff; border: 1px solid #eee; border-radius: 16px;
@@ -92,7 +90,6 @@ st.markdown("""
     .metric-value-sub { font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }
     .metric-divider { width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }
 
-    /* 기본 UI */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
@@ -119,6 +116,20 @@ st.markdown("""
     .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
     .stTextInput input { text-align: center; }
     .viewing-alert { background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba; }
+    
+    /* 김동준 특수 규칙 안내 박스 */
+    .special-rule-box {
+        color: #5D9CEC; 
+        font-weight: 800; 
+        margin-top: 15px; 
+        background-color: #F0F8FF; 
+        padding: 15px; 
+        border-radius: 12px;
+        border: 1px solid #5D9CEC;
+        text-align: center;
+        line-height: 1.5;
+        font-size: 0.95rem;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -233,8 +244,13 @@ def fetch_excel(file_id, is_renewal=False):
                     usage, count = [], 0.0
                     for d in date_cols:
                         val = str(row[d])
-                        if "연차" in val: usage.append(f"{d}일(연차)"); count += 1.0
-                        elif "반차" in val: usage.append(f"{d}일(반차)"); count += 0.5
+                        # [Ver 3.9 Fix] '휴가' 키워드 추가 (연차와 동일하게 1.0 차감)
+                        if "연차" in val or "휴가" in val: 
+                            usage.append(f"{d}일({val.strip()})")
+                            count += 1.0
+                        elif "반차" in val: 
+                            usage.append(f"{d}일(반차)")
+                            count += 0.5
                     remain = 0.0
                     if remain_col_idx != -1 and i + 1 < len(df):
                         try: remain = float(df.iloc[i+1, remain_col_idx])
@@ -244,7 +260,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 3. 유틸리티 함수
+# 3. 유틸리티 함수 & 특수 규칙 계산기
 # ==============================================================================
 def hash_password(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
@@ -260,8 +276,31 @@ def get_kst_now():
 def get_kst_today():
     return get_kst_now().date()
 
+# [Ver 3.9] 김동준 님 특수 연차 발생 계산 함수
+def get_kim_special_accrual(uid):
+    if uid != "김동준": return 0.0
+    
+    # 1. 월별 발생 (2026.02 ~ 2026.06 매월 1일)
+    bonus = 0.0
+    check_dates = [
+        datetime.date(2026, 2, 1),
+        datetime.date(2026, 3, 1),
+        datetime.date(2026, 4, 1),
+        datetime.date(2026, 5, 1),
+        datetime.date(2026, 6, 1)
+    ]
+    today = get_kst_today()
+    for d in check_dates:
+        if today >= d: bonus += 1.0
+        
+    # 2. 1년 만근 발생 (2026.07.01)
+    if today >= datetime.date(2026, 7, 1):
+        bonus += 15.0
+        
+    return bonus
+
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.8)
+# 4. 메인 로직 (Ver 3.9)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -307,7 +346,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.8</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.9</div>', unsafe_allow_html=True)
 
     uinfo = st.session_state.user_db.get(target_uid, {})
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
@@ -392,13 +431,13 @@ else:
                 base_remain = float(me.iloc[0]['잔여'])
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
                 
+                # [Ver 3.9] 김동준 특수 발생분 계산
+                special_bonus = get_kim_special_accrual(target_uid)
+                
                 rt_used = 0.0
                 rt_msg = ""
                 rt_valid = False
-                
-                # [Ver 3.8] 미래/과거 연차 분석 변수
-                past_used_cnt = 0.0
-                future_used_cnt = 0.0
+                future_used_cnt = 0
                 
                 try:
                     file_month = int(re.search(r'(\d+)월', latest_fname).group(1))
@@ -415,40 +454,23 @@ else:
                                 rt_msg = rt_data.get('details', '')
                                 rt_valid = True
                                 
-                                # [Ver 3.8 핵심] 날짜 텍스트 파싱하여 미래/과거 구분
-                                # 예: "19일(연차), 20일(반차)"
                                 dates = re.findall(r'(\d+)일', rt_msg)
-                                for d_str in dates:
-                                    d_int = int(d_str)
-                                    # 해당 날짜의 사용량 추정 (단순화를 위해 전체 N개 중 N분의 1로 가정하거나, 텍스트에서 반차 여부 확인)
-                                    # 여기선 정확도를 위해 텍스트에서 '반차'가 포함된 구간인지 확인이 어렵다면
-                                    # 단순히 날짜 개수로 나누거나, 날짜별로 1개로 치되, 총합을 맞춤.
-                                    # 더 정확한 방법: 날짜별 루프
-                                    pass
-                                    
-                                # 간단한 로직: 오늘 날짜보다 큰 숫자가 텍스트에 있으면 '예정'으로 간주
-                                # (정확한 0.5개 계산은 복잡하므로, 일단 '예정된 휴가 있음'을 알리는 데 집중)
-                                future_dates = [int(d) for d in dates if int(d) >= today_kst.day]
-                                past_dates = [int(d) for d in dates if int(d) < today_kst.day]
-                                
-                                # 개수 추정 (정확한 매칭은 어려우므로 비율로 근사치 표시하거나, 개수만 표시)
-                                # 여기서는 사용자에게 "예정 포함"이라는 텍스트를 보여주는 것으로 충분
-                                future_cnt = len(future_dates)
-                                past_cnt = len(past_dates)
-                                
+                                if any(int(d) >= today_kst.day for d in dates):
+                                    future_used_cnt = 1
                             else:
                                 rt_valid = False
                 except: pass
 
                 if pd.isna(base_remain): final_str = "∞"
                 else:
-                    total_calc = base_remain + bonus - rt_used
+                    total_calc = base_remain + bonus + special_bonus - rt_used
                     final_str = format_leave_num(total_calc)
+                    
                     if bonus > 0: st.success(f"🎊 갱신 연차 +{format_leave_num(bonus)} 자동 합산됨")
+                    if special_bonus > 0: st.success(f"👶 근속 1년 미만 발생분 +{format_leave_num(special_bonus)} 합산됨")
                     
                     if rt_valid and rt_used > 0: 
-                        # [Ver 3.8] 미래 연차 포함 여부 안내 메시지 강화
-                        future_msg = " (예정 포함)" if future_used_cnt > 0 or (rt_msg and any(int(d) >= today_kst.day for d in re.findall(r'(\d+)일', rt_msg))) else ""
+                        future_msg = " (예정 포함)" if future_used_cnt > 0 else ""
                         st.markdown(f"<span class='realtime-badge'>📉 실시간{future_msg} -{format_leave_num(rt_used)} 반영됨</span>", unsafe_allow_html=True)
                         st.info(f"📝 **내역:** {rt_msg}")
                     elif not rt_valid and today_kst.month > file_month:
@@ -475,7 +497,25 @@ else:
     with tab3:
         insert_universal_bar()
         tab_header("연차 갱신 및 발생 내역")
-        if not renewal_df.empty:
+        
+        # [Ver 3.9] 김동준 특수 규칙 UI 표시
+        if target_uid == "김동준":
+            special_accrued = get_kim_special_accrual("김동준")
+            
+            # 1년 만근 갱신일 (2026-07-01)
+            st.info("📅 **2026-07-01** 1년 근속 갱신 예정 (입사일: 2025-07-01)")
+            st.markdown("<div class='renewal-value'>+15개</div>", unsafe_allow_html=True)
+            
+            # 특수 규칙 안내문 (파란색 박스)
+            st.markdown(f"""
+                <div class="special-rule-box">
+                [근속 1년 미만 근로자 연차 갱신규칙]<br>
+                2026년 6월 1일까지 매월 1일 연차 1개 발생<br>
+                (현재까지 발생분: +{format_leave_num(special_accrued)})
+                </div>
+            """, unsafe_allow_html=True)
+            
+        elif not renewal_df.empty:
             me = renewal_df[renewal_df['이름'] == target_uid]
             if not me.empty:
                 r = me.iloc[0]
