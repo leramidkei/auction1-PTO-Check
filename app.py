@@ -1,9 +1,9 @@
-# [Ver 3.5] 옥션원 서울지사 연차확인 시스템 (Security Hardened)
+# [Ver 3.6] 옥션원 서울지사 연차확인 시스템 (Timezone Fix & Security)
 # Update: 2026-02-01
 # Changes: 
-# - [Security] SHA-256 해싱 적용 (비밀번호 원문 저장 금지)
-# - [Auto-Migration] 기존 평문 비밀번호를 자동으로 암호화하여 DB 업데이트
-# - [Layout] Ver 3.4의 안정적인 순정 레이아웃 유지
+# - [Critical Fix] 서버 시간을 UTC에서 KST(한국 시간)로 강제 보정 (연차 갱신 오류 해결)
+# - [Security] SHA-256 비밀번호 암호화 유지
+# - [Layout] 안정적인 순정 레이아웃(Ver 3.4 기반) 유지
 
 import streamlit as st
 import pandas as pd
@@ -18,10 +18,10 @@ import re
 import os
 import math
 import calendar
-import hashlib # [Ver 3.5] 암호화를 위한 모듈
+import hashlib
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 3.4 디자인 유지)
+# 1. 페이지 설정 및 CSS
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -210,47 +210,38 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 3. [Ver 3.5] 보안 함수 추가 (해싱)
+# 3. 보안 함수 & 시간 함수 (Ver 3.6 핵심)
 # ==============================================================================
 def hash_password(password):
-    """비밀번호를 SHA-256으로 암호화"""
     return hashlib.sha256(str(password).encode()).hexdigest()
 
 def verify_password(stored_password, input_password):
-    """
-    입력된 비밀번호가 저장된 비밀번호와 일치하는지 확인.
-    기존 평문 비밀번호와의 호환성을 위해 체크.
-    """
-    # 1. 이미 해싱된 비밀번호와 비교
-    if stored_password == hash_password(input_password):
-        return True
-    # 2. (마이그레이션 전) 평문 비밀번호와 비교 - 혹시 모를 오류 방지
-    if stored_password == input_password:
-        return True
+    if stored_password == hash_password(input_password): return True
+    if stored_password == input_password: return True
     return False
 
+# [Ver 3.6] 한국 시간(KST) 구하기 함수
+def get_kst_today():
+    # UTC 시간에 9시간을 더해 한국 시간을 만듦
+    utc_now = datetime.datetime.utcnow()
+    kst_now = utc_now + datetime.timedelta(hours=9)
+    return kst_now.date()
+
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.5)
+# 4. 메인 로직 (Ver 3.6)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
-# [Ver 3.5] DB 로드 및 자동 보안 업데이트 (마이그레이션)
 if user_db_id:
     user_db = load_json_file(user_db_id)
     db_changed = False
-    
-    # 모든 사용자를 순회하며 평문 비밀번호를 해시로 변환
     for u in user_db:
         pw = user_db[u].get('pw', '')
-        # SHA-256 해시는 길이가 64자. 64자가 아니면 평문으로 간주하고 변환
         if len(pw) != 64:
             user_db[u]['pw'] = hash_password(pw)
             db_changed = True
-            print(f"[보안] {u}님의 비밀번호를 암호화했습니다.")
-    
     if db_changed:
         save_user_db(user_db_id, user_db)
-        st.toast("🔒 보안 업데이트: 모든 비밀번호가 안전하게 암호화되었습니다.")
 
 if not st.session_state.get('login_status'):
     st.markdown("""
@@ -267,14 +258,10 @@ if not st.session_state.get('login_status'):
             submitted = st.form_submit_button("로그인", use_container_width=True)
             
             if submitted:
-                db = load_json_file(user_db_id) # 최신 DB 다시 로드
+                db = load_json_file(user_db_id)
                 if uid in db:
-                    # [Ver 3.5] 암호화된 비밀번호 비교 함수 사용
                     if verify_password(db[uid]['pw'], upw):
-                        st.session_state.login_status = True
-                        st.session_state.user_id = uid
-                        st.session_state.user_db = db
-                        st.rerun()
+                        st.session_state.login_status = True; st.session_state.user_id = uid; st.session_state.user_db = db; st.rerun()
                     else: st.error("비밀번호가 일치하지 않습니다.")
                 else: st.error("아이디가 존재하지 않습니다.")
 else:
@@ -287,9 +274,8 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.5</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.6</div>', unsafe_allow_html=True)
 
-    # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
 
@@ -304,9 +290,7 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # 관리자 토글
     if login_uinfo.get('role') == 'admin':
-        # CSS 제거하고 순정 토글 사용 (왼쪽 정렬)
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
         
@@ -320,13 +304,17 @@ else:
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
+    # [Ver 3.6 핵심 Fix] 한국 시간(KST) 기준 날짜 비교 로직
     def get_smart_renewal_bonus(uid, base_filename):
         if renewal_df.empty or not base_filename: return 0.0
         me = renewal_df[renewal_df['이름'] == uid]
         if not me.empty:
             try:
                 renew_date = pd.to_datetime(me.iloc[0]['갱신일']).date()
-                today = datetime.date.today()
+                
+                # [Fix] 여기가 핵심입니다. 서버시간(UTC)이 아닌 한국시간(KST)을 가져옵니다.
+                today_kst = get_kst_today()
+                
                 match = re.search(r'(\d{4})_(\d+)', base_filename)
                 if match:
                     f_year, f_month = int(match.group(1)), int(match.group(2))
@@ -334,7 +322,8 @@ else:
                     file_end_date = datetime.date(f_year, f_month, last_day)
                 else: file_end_date = datetime.date(2000, 1, 1)
 
-                if today >= renew_date and renew_date > file_end_date:
+                # 한국 시간 기준으로 2월 1일이 되었으니 today_kst >= renew_date가 True가 됩니다.
+                if today_kst >= renew_date and renew_date > file_end_date:
                     return float(me.iloc[0]['갱신개수'])
             except: pass
         return 0.0
@@ -370,12 +359,19 @@ else:
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
+                
+                # [Ver 3.6 Fix] 한국 시간 기준 갱신 보너스 계산
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
+                
                 rt_used = 0.0
                 rt_msg = ""
                 try:
                     file_month = int(re.search(r'(\d+)월', latest_fname).group(1))
-                    if datetime.date.today().month > file_month and target_uid in st.session_state.realtime_data:
+                    
+                    # [Ver 3.6 Fix] 실시간 데이터 비교도 한국 시간 기준 월(Month)로 변경
+                    current_month_kst = get_kst_today().month
+                    
+                    if current_month_kst > file_month and target_uid in st.session_state.realtime_data:
                         rt_used = st.session_state.realtime_data[target_uid].get('used', 0.0)
                         rt_msg = st.session_state.realtime_data[target_uid].get('details', '')
                 except: pass
@@ -411,7 +407,15 @@ else:
             me = renewal_df[renewal_df['이름'] == target_uid]
             if not me.empty:
                 r = me.iloc[0]
-                st.info(f"📅 갱신일: **{r['갱신일']}**")
+                
+                # [Ver 3.6] 갱신일 표시 로직 개선 (한국 시간 기준 비교)
+                try:
+                    rdt = pd.to_datetime(r['갱신일']).date()
+                    now_kst = get_kst_today()
+                    if rdt > now_kst: st.info(f"📅 **{r['갱신일']}** 갱신 예정")
+                    else: st.success(f"✅ **{r['갱신일']}** 갱신 완료")
+                except: st.write(f"📅 {r['갱신일']}")
+                
                 add_str = format_leave_num(float(r['갱신개수']))
                 st.markdown(f"<div class='renewal-value'>+{add_str}</div>", unsafe_allow_html=True)
                 st.markdown("<div style='text-align: center; color: #888; font-size: 0.9rem;'>추가 발생</div>", unsafe_allow_html=True)
@@ -427,11 +431,9 @@ else:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # [Ver 3.5] 버튼 2개 세로 배치 (안정적인 순정 모드)
         if st.button("저장", use_container_width=True):
             if p1 and p2:
                 if p1 == p2:
-                    # [Ver 3.5] 비밀번호 저장 시에도 암호화
                     st.session_state.user_db[target_uid]['pw'] = hash_password(p1)
                     st.session_state.user_db[target_uid]['first_login'] = False
                     save_user_db(user_db_id, st.session_state.user_db)
