@@ -1,10 +1,9 @@
-# [Ver 2.0] 옥션원 서울지사 연차확인 시스템 (Final Fix)
+# [Ver 2.1] 옥션원 서울지사 연차확인 시스템 (Layout Redesign)
 # Update: 2026-02-01
 # Changes: 
-# - 모바일 화면 강제 50:50 분할 CSS (줄바꿈 원천 봉쇄)
-# - 프로필 카드 Identity 고정 (관리자 이름 유지)
-# - 관리자(좌) / 로그아웃(우) 배치 확정
-# - 갱신 탭 디자인 및 로직 최종 점검
+# - 로그아웃 버튼 -> 설정 탭(Tab 4) 하단으로 이동 (저장 버튼과 병기)
+# - 관리자 모드 토글 -> 아이콘 복구 & 중앙 정렬 & 일반 사용자 숨김
+# - 비밀번호 변경 UI -> Form 제거 및 버튼 레이아웃 최적화
 
 import streamlit as st
 import pandas as pd
@@ -21,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 강력한 CSS (Ver 2.0)
+# 1. 페이지 설정 및 CSS (Ver 2.1)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -31,7 +30,6 @@ st.markdown("""
     
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
-    /* 메인 컨테이너 */
     .block-container {
         max-width: 480px; padding-top: 4rem; padding-bottom: 5rem;
         padding-left: 1.2rem; padding-right: 1.2rem;
@@ -56,30 +54,6 @@ st.markdown("""
     .name-text { font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.3; word-break: keep-all; }
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
-
-    /* [Ver 2.0 핵심] 모바일 강제 가로 정렬 CSS (절대 수정 금지 구역) */
-    /* 화면이 좁아져도 컨트롤 패널이 줄바꿈되지 않도록 강제함 */
-    [data-testid="column"] {
-        min-width: 0 !important; /* 내용물에 맞춰 줄어들게 함 */
-    }
-    
-    /* 관리자 컨트롤 패널의 구체적 타겟팅 */
-    .admin-controls-container [data-testid="column"] {
-        width: 50% !important;
-        flex: 1 1 50% !important;
-    }
-    
-    /* 수직 중앙 정렬 보정 */
-    .stToggle { margin-top: 5px; } 
-    
-    /* 로그아웃 버튼 우측 정렬 */
-    .logout-btn-wrapper { display: flex; justify-content: flex-end; width: 100%; }
-    .logout-btn-wrapper button {
-        background-color: #f1f3f5; color: #868e96; font-weight: 600;
-        border: 1px solid #dee2e6; padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.8rem;
-        white-space: nowrap; width: auto;
-    }
-    .logout-btn-wrapper button:hover { background-color: #e9ecef; color: #495057; }
 
     /* 메트릭 박스 */
     .metric-box {
@@ -106,6 +80,25 @@ st.markdown("""
         padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
     }
     
+    /* 관리자 토글 중앙 정렬 */
+    .admin-toggle-wrapper {
+        display: flex; justify-content: center; margin-bottom: 15px;
+    }
+    .stToggle { margin-top: 0 !important; }
+
+    /* 버튼 스타일 (설정 탭) */
+    .stButton button {
+        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.6rem 0; width: 100%;
+    }
+    /* 저장 버튼 (파란색) */
+    .save-btn button {
+        background-color: #5D9CEC !important; color: white !important; border: none;
+    }
+    /* 로그아웃 버튼 (회색) */
+    .logout-btn button {
+        background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6;
+    }
+
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
@@ -236,7 +229,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 2.0)
+# 4. 메인 로직 (Ver 2.1)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -269,53 +262,40 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 2.0</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 2.1</div>', unsafe_allow_html=True)
 
-    # [Ver 2.0 핵심] 프로필 카드는 '무조건' 로그인한 사람(관리자 본인) 정보 표시
+    # 프로필 카드 (본인 고정)
+    uinfo = st.session_state.user_db.get(target_uid, {})
+    temp_uinfo = uinfo
+
     st.markdown(f"""
     <div class="profile-card">
         <div class="card-text">
             <div class="hello-text">반갑습니다,</div>
-            <div class="name-text"><span class="name-highlight">{login_uid} {login_uinfo.get('title','')}</span>님</div>
+            <div class="name-text"><span class="name-highlight" id="target_name_area">{target_uid} {temp_uinfo.get('title','')}</span>님</div>
             <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
         </div>
         <div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 2.0 핵심] 컨트롤 패널 (강제 가로 정렬 컨테이너 적용)
+    # [Ver 2.1 핵심] 관리자 토글 영역 (카드 바로 밑 중앙 정렬)
+    # 관리자만 보임
     if login_uinfo.get('role') == 'admin':
-        # 이 컨테이너는 CSS로 강제 50:50 설정되어 있음
-        st.markdown('<div class="admin-controls-container">', unsafe_allow_html=True)
-        c_toggle, c_logout = st.columns([0.5, 0.5])
-        
+        # 토글을 가운데 정렬하기 위해 컬럼 사용
+        c_space1, c_toggle, c_space2 = st.columns([0.3, 0.4, 0.3])
         with c_toggle:
-            # 관리자 모드 토글 (심플하게)
-            st.toggle("관리자", key="admin_mode_toggle")
+            st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
             st.session_state.admin_mode = st.session_state.admin_mode_toggle
-
-        with c_logout:
-            # 로그아웃 버튼 (우측 정렬 래퍼 사용)
-            st.markdown('<div class="logout-btn-wrapper">', unsafe_allow_html=True)
-            if st.button("로그아웃", key="btn_logout"):
-                st.session_state.login_status = False; st.session_state.admin_mode = False; st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
         
+        # 관리자 모드 켜졌을 때 선택창
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
             st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
             
-            # 관리자 알림띠
             if target_uid != login_uid:
                 st.markdown(f'<div class="viewing-alert">👀 현재 <b>{target_uid}</b>님의 데이터를 조회 중입니다.</div>', unsafe_allow_html=True)
-    else:
-        # 일반 사용자
-        c_space, c_logout = st.columns([0.6, 0.4])
-        with c_logout:
-            st.markdown('<div class="logout-btn-wrapper">', unsafe_allow_html=True)
-            if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
@@ -417,14 +397,38 @@ else:
         else: st.info("갱신 정보가 없습니다.")
 
     with tab4:
-        tab_header("비밀번호 변경")
+        tab_header("비밀번호 변경 및 로그아웃")
+        
         if login_uid != target_uid:
              st.warning(f"⚠️ 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
-        with st.form("pw"):
-            p1, p2 = st.text_input("새 비번", type="password"), st.text_input("확인", type="password")
-            if st.form_submit_button("저장"):
-                if p1 == p2 and p1:
-                    st.session_state.user_db[target_uid]['pw'] = p1
-                    st.session_state.user_db[target_uid]['first_login'] = False
-                    save_user_db(user_db_id, st.session_state.user_db)
-                    st.success("변경 완료")
+
+        # [Ver 2.1 핵심] 비밀번호 변경 및 로그아웃 버튼 배치
+        # Form 제거 후 직접 Input 사용
+        p1 = st.text_input("새 비번", type="password")
+        p2 = st.text_input("확인", type="password")
+        
+        st.markdown("<br>", unsafe_allow_html=True) # 간격
+        
+        # 버튼을 가로로 배치 (5:5)
+        c_save, c_logout = st.columns([1, 1])
+        
+        with c_save:
+            st.markdown('<div class="save-btn">', unsafe_allow_html=True)
+            if st.button("비밀번호 저장"):
+                if p1 and p2:
+                    if p1 == p2:
+                        st.session_state.user_db[target_uid]['pw'] = p1
+                        st.session_state.user_db[target_uid]['first_login'] = False
+                        save_user_db(user_db_id, st.session_state.user_db)
+                        st.success("저장 완료")
+                    else: st.error("불일치")
+                else: st.error("입력 필요")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with c_logout:
+            st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
+            if st.button("로그아웃"):
+                st.session_state.login_status = False
+                st.session_state.admin_mode = False
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
