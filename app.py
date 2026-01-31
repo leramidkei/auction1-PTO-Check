@@ -1,9 +1,9 @@
-# [Ver 2.9] 옥션원 서울지사 연차확인 시스템 (User Solution Applied)
+# [Ver 3.0] 옥션원 서울지사 연차확인 시스템 (Full-Width Admin & Tab Balance)
 # Update: 2026-02-01
 # Changes: 
-# - [Tab Fix] '월별', '설정' 탭에만 상단 스페이서(15px) 추가하여 높이 밸런스 맞춤 (User Idea)
-# - [CSS] 관리자 토글 버튼 강제 중앙 정렬 코드 강화
-# - [Settings] 저장/로그아웃 버튼 현상 유지
+# - [UI] 관리자 토글을 'Full-Width 카드' 형태로 변경하여 강제 중앙 정렬 구현
+# - [Tab] 월별/설정 탭 상단 스페이서 15px -> 22px로 증량 (높이 균형 조절)
+# - [Layout] 기존 로직 유지 및 CSS 최적화
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 2.9)
+# 1. 페이지 설정 및 CSS (Ver 3.0)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -55,21 +55,33 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* [Ver 2.9 핵심] 관리자 토글 강제 중앙 정렬 CSS */
-    /* 토글이 포함된 div를 찾아서 flex 중앙 정렬 강제 적용 */
-    div.stToggle {
+    /* [Ver 3.0 핵심] 관리자 토글 Full-Width 디자인 */
+    /* 토글을 감싸는 박스를 만들어서 버튼처럼 보이게 함 */
+    .admin-toggle-box {
+        background-color: #f1f3f5;
+        border-radius: 12px;
+        padding: 10px 0;
+        margin-bottom: 10px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        border: 1px solid #dee2e6;
+    }
+    
+    /* Streamlit Toggle 내부 정렬 강제 */
+    .stToggle {
         display: flex !important;
         justify-content: center !important;
+        align-items: center !important;
         width: 100% !important;
     }
-    /* 토글 내부의 라벨(글자)도 중앙 정렬 */
-    div.stToggle > label {
-        justify-content: center !important;
-        width: 100% !important;
-        text-align: center !important;
+    div[data-testid="stWidgetLabel"] {
+        margin-right: 15px; /* 글자와 스위치 사이 간격 */
+        flex: unset !important; /* 늘어나지 않게 */
     }
-    div.stToggle p {
-        font-weight: 700; color: #555;
+    .stToggle label p {
+        font-weight: 800; color: #495057; font-size: 1rem;
     }
 
     /* 메트릭 박스 */
@@ -106,7 +118,7 @@ st.markdown("""
     }
     /* 로그아웃 버튼 */
     div[data-testid="column"]:nth-of-type(2) .stButton button {
-        background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6 !important;
+        background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6;
     }
 
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
@@ -238,7 +250,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 2.9)
+# 4. 메인 로직 (Ver 3.0)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -271,7 +283,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 2.9</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.0</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -281,17 +293,18 @@ else:
     <div class="profile-card">
         <div class="card-text">
             <div class="hello-text">반갑습니다,</div>
-            <div class="name-text"><span class="name-highlight" id="target_name_area">{login_uid} {admin_uinfo.get('title','')}</span>님</div>
+            <div class="name-text"><span class="name-highlight">{login_uid} {admin_uinfo.get('title','')}</span>님</div>
             <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
         </div>
         <div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 관리자 토글 (중앙 정렬)
+    # [Ver 3.0] 관리자 토글 - Full Width 박스 적용 (강제 중앙 정렬)
     if login_uinfo.get('role') == 'admin':
-        st.markdown('<div class="admin-toggle-container">', unsafe_allow_html=True)
-        # CSS 강제 정렬 적용됨
+        # 아래 div로 토글을 감싸서 스타일 적용
+        st.markdown('<div class="admin-toggle-box">', unsafe_allow_html=True)
+        # CSS가 stToggle을 중앙 정렬시킴
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
         st.markdown('</div>', unsafe_allow_html=True)
@@ -335,9 +348,9 @@ else:
     def tab_header(text):
         st.markdown(f"""<div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
     
-    # [Ver 2.9 핵심] 탭 상단 높이 조절용 스페이서 (15px)
+    # [Ver 3.0 핵심] 스페이서 높이 22px로 증량 (탭 높이 밸런스)
     def tab_spacer():
-        st.markdown('<div style="height: 15px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div style="height: 22px;"></div>', unsafe_allow_html=True)
 
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -383,7 +396,7 @@ else:
             else: st.warning("데이터가 없습니다.")
 
     with tab2:
-        # [Ver 2.9] 월별 탭: 스페이서 추가 (높이 낮추기)
+        # [Ver 3.0] 월별 탭: 22px 스페이서 적용
         tab_spacer()
         tab_header("월별 사용 내역 조회")
         opts = {f['name']: f['id'] for f in monthly_files}
@@ -412,7 +425,7 @@ else:
         else: st.info("갱신 정보가 없습니다.")
 
     with tab4:
-        # [Ver 2.9] 설정 탭: 스페이서 추가 (높이 낮추기)
+        # [Ver 3.0] 설정 탭: 22px 스페이서 적용
         tab_spacer()
         tab_header("설정 및 로그아웃")
         if login_uid != target_uid:
