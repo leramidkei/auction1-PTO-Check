@@ -1,10 +1,9 @@
-# [Ver 4.1] 옥션원 서울지사 연차확인 시스템 (Logic Correction & UI Polish)
+# [Ver 4.2] 옥션원 서울지사 연차확인 시스템 (Visual Fix & Text Update)
 # Update: 2026-02-01
 # Changes: 
-# - [Logic Fix] 잔여 탭: 김동준 님 연차 계산 시 '기준 파일(엑셀)' 이후에 발생한 것만 가산하도록 수정 (중복 합산 방지)
-# - [Logic Fix] 갱신 탭: 2026-07-01 이후에는 '1년 미만 규칙' 안내 박스가 자동 소멸되도록 설정
-# - [UI Fix] 갱신 탭 '+15개' 배경 높이 확장 (padding-bottom 추가)
-# - [UI] 탭 최하단 여백 유지
+# - [UI] 갱신 탭 '+15개' 숫자 하단 여백(Padding) 대폭 추가 -> 잘림 현상 해결
+# - [Text] 월별 탭 제목 변경: "월별 사용 내역 조회" -> "월별 사용 내역 조회 (월말 기준)"
+# - [Logic] 김동준 님 특수 연차 로직 (잔여 2.5 / 갱신 7) 유지
 
 import streamlit as st
 import pandas as pd
@@ -90,11 +89,15 @@ st.markdown("""
     .metric-value-sub { font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }
     .metric-divider { width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }
 
-    /* [Ver 4.1 Fix] 갱신 연차 값 배경 높이 확장 */
+    /* [Ver 4.2 Fix] 갱신 값 여백 대폭 확장 */
     .renewal-value { 
-        font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; 
-        margin-top: 10px; 
-        padding-bottom: 20px; /* 배경 공간 확보 */
+        font-size: 3.5rem; /* 폰트 조금 더 키움 */
+        color: #5D9CEC; 
+        font-weight: 900; 
+        text-align: center; 
+        margin-top: 20px; 
+        padding-bottom: 40px; /* 하단 여백 넉넉하게 */
+        line-height: 1.2; /* 줄 간격 확보 */
         display: block;
     }
 
@@ -281,14 +284,11 @@ def get_kst_now():
 def get_kst_today():
     return get_kst_now().date()
 
-# [Ver 4.1 Fix] 김동준 님 특수 연차 발생 계산
-# mode='total': 전체 누적 발생분 (갱신 탭 표시용)
-# mode='incremental': 기준 파일(엑셀) 이후 발생분 (잔여 탭 합산용)
+# [Ver 4.2] 김동준 님 특수 연차 발생 계산
 def get_kim_special_calc(uid, mode='total', base_file_date=None):
     if uid != "김동준": return 0.0
     
     bonus = 0.0
-    # 발생 예정일 리스트 (2025.08.01 ~ 2026.06.01) - 1일씩 발생
     monthly_dates = [
         datetime.date(2025, 8, 1), datetime.date(2025, 9, 1),
         datetime.date(2025, 10, 1), datetime.date(2025, 11, 1),
@@ -299,19 +299,14 @@ def get_kim_special_calc(uid, mode='total', base_file_date=None):
     ]
     
     today = get_kst_today()
-    
-    # 1. 매월 1일 발생분 계산
     for d in monthly_dates:
-        # 오늘 날짜가 발생일 지났는지 확인
         if today >= d:
             if mode == 'total':
                 bonus += 1.0
             elif mode == 'incremental':
-                # [핵심 로직] 기준 파일 날짜보다 "나중"에 발생한 것만 추가
                 if base_file_date and d > base_file_date:
                     bonus += 1.0
         
-    # 2. 1년 만근 (2026.07.01) - 이건 total이든 incremental이든 발생하면 무조건 15개 추가
     renewal_date = datetime.date(2026, 7, 1)
     if today >= renewal_date:
         bonus += 15.0
@@ -319,7 +314,7 @@ def get_kim_special_calc(uid, mode='total', base_file_date=None):
     return bonus
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 4.1)
+# 4. 메인 로직 (Ver 4.2)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -365,7 +360,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 4.1</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 4.2</div>', unsafe_allow_html=True)
 
     uinfo = st.session_state.user_db.get(target_uid, {})
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
@@ -453,7 +448,6 @@ else:
                 base_remain = float(me.iloc[0]['잔여'])
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
                 
-                # [Ver 4.1 Logic] 기준 파일 날짜 파악
                 try:
                     match = re.search(r'(\d{4})_(\d+)', latest_fname)
                     if match:
@@ -463,7 +457,6 @@ else:
                     else: file_end_date = datetime.date(2000, 1, 1)
                 except: file_end_date = datetime.date(2000, 1, 1)
 
-                # [Ver 4.1 Logic] 엑셀 파일 이후에 발생한 것만 추가!
                 special_bonus = get_kim_special_calc(target_uid, mode='incremental', base_file_date=file_end_date)
                 
                 rt_used = 0.0
@@ -512,7 +505,8 @@ else:
 
     with tab2:
         insert_universal_bar()
-        tab_header("월별 사용 내역 조회")
+        # [Ver 4.2 Fix] 텍스트 변경
+        tab_header("월별 사용 내역 조회 (월말 기준)")
         opts = {f['name']: f['id'] for f in monthly_files}
         sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
         if sel:
@@ -530,13 +524,11 @@ else:
         tab_header("연차 갱신 및 발생 내역")
         
         if target_uid == "김동준":
-            # [Ver 4.1] 갱신 탭에서는 전체 누적(total)을 보여줌
             special_accrued_total = get_kim_special_calc("김동준", mode='total')
             
             st.info("📅 **2026-07-01** 1년 근속 갱신 예정 (입사일: 2025-07-01)")
             st.markdown("<div class='renewal-value'>+15개</div>", unsafe_allow_html=True)
             
-            # [Ver 4.1 Fix] 2026-07-01 이후에는 규칙 박스 숨김
             if get_kst_today() < datetime.date(2026, 7, 1):
                 st.markdown(f"""
                     <div class="special-rule-box">
