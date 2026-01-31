@@ -1,9 +1,10 @@
-# [Ver 1.6] 옥션원 서울지사 연차확인 시스템
-# Update: 2026-01-31
+# [Ver 1.7] 옥션원 서울지사 연차확인 시스템
+# Update: 2026-02-01
 # Changes: 
-# - 관리자 모드 토글 -> 버튼 변경 (UI 통일 및 우측 정렬)
-# - 연차 숫자 포맷팅 개선 (정수일 때 .0 제거)
-# - 탭 상단 높이 흔들림 완벽 고정 (투명 벽돌 기법)
+# - 모바일 강제 가로 정렬 (CSS nowrap 적용)
+# - 프로필 카드 고정 (관리자 모드 시에도 본인 이름 유지)
+# - 관리자 토글(Toggle) UI 복귀 및 우측 배치
+# - 데이터 조회 대상 명확화 (알림띠 추가)
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +21,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 1.6)
+# 1. 페이지 설정 및 CSS (Ver 1.7)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -30,7 +31,6 @@ st.markdown("""
     
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
-    /* 메인 컨테이너 */
     .block-container {
         max-width: 480px; padding-top: 3rem; padding-bottom: 5rem;
         padding-left: 1.2rem; padding-right: 1.2rem;
@@ -38,7 +38,7 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    /* 로그인 화면 스타일 */
+    /* 로그인 화면 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
@@ -56,18 +56,26 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* [Ver 1.6] 버튼 스타일 통일 (회색 톤) */
-    .stButton button {
-        background-color: #f1f3f5; color: #495057; font-weight: 600;
-        border: 1px solid #dee2e6; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem;
-        width: 100%; transition: all 0.2s;
+    /* [Ver 1.7 핵심] 컨트롤 패널 강제 가로 정렬 (모바일 줄바꿈 방지) */
+    [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important; /* 줄바꿈 금지 */
+        align-items: center !important; /* 수직 중앙 정렬 */
     }
-    .stButton button:hover { background-color: #e9ecef; border-color: #ced4da; }
     
-    /* 활성화된 버튼 스타일 (관리자 모드 ON 일때) */
-    .admin-active button {
-        background-color: #5D9CEC !important; color: white !important; border-color: #5D9CEC !important;
+    /* 관리자 토글 우측 정렬을 위한 스타일 */
+    .stToggle {
+        display: flex;
+        justify-content: flex-end;
     }
+
+    /* 로그아웃 버튼 스타일 */
+    .stButton button {
+        background-color: #f1f3f5; color: #868e96; font-weight: 600;
+        border: 1px solid #dee2e6; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem;
+        width: auto; /* 너비 자동 */
+        white-space: nowrap; /* 텍스트 줄바꿈 방지 */
+    }
+    .stButton button:hover { background-color: #e9ecef; color: #495057; }
 
     /* 메트릭 박스 */
     .metric-box {
@@ -89,7 +97,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
     
-    /* [Ver 1.6] 탭 상단 고정용 투명 벽돌 */
+    /* 탭 상단 고정용 투명 벽돌 */
     .tab-brick { height: 20px; width: 100%; display: block; }
 
     .tab-section-header {
@@ -100,6 +108,14 @@ st.markdown("""
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
+    
+    /* 조회 대상 알림띠 */
+    .viewing-alert {
+        background-color: #fff3cd; color: #856404;
+        padding: 8px; border-radius: 8px; text-align: center;
+        font-size: 0.85rem; font-weight: bold; margin-bottom: 15px;
+        border: 1px solid #ffeeba;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -222,7 +238,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 1.6)
+# 4. 메인 로직 (Ver 1.7)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -249,66 +265,57 @@ else:
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
     
-    # 관리자 모드 상태 관리 (세션)
+    # 관리자 모드 상태 관리
     if 'admin_mode' not in st.session_state:
         st.session_state.admin_mode = False
 
-    target_uid = login_uid
-    # 관리자 모드가 켜져있고 권한이 있다면 타겟 변경
-    if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
-        target_uid = st.session_state.get('impersonate_user', login_uid)
-
-    st.markdown('<div class="version-badge">Ver 1.6</div>', unsafe_allow_html=True)
-
-    # 프로필 카드
-    uinfo = st.session_state.user_db.get(target_uid, {})
-    temp_uinfo = uinfo
+    # [Ver 1.7 수정] 프로필은 항상 로그인한 본인(관리자)
+    st.markdown('<div class="version-badge">Ver 1.7</div>', unsafe_allow_html=True)
 
     st.markdown(f"""
     <div class="profile-card">
         <div class="card-text">
             <div class="hello-text">반갑습니다,</div>
-            <div class="name-text"><span class="name-highlight" id="target_name_area">{target_uid} {temp_uinfo.get('title','')}</span>님</div>
+            <div class="name-text"><span class="name-highlight">{login_uid} {login_uinfo.get('title','')}</span>님</div>
             <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
         </div>
         <div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 1.6] 버튼 컨트롤 영역 (우측 정렬 & 같은 버튼 사용)
-    # 비율을 [0.4, 0.3, 0.3] 등으로 주어 오른쪽으로 밀어버림
+    # [Ver 1.7 핵심] 컨트롤 패널 (무조건 한 줄 유지)
+    # Flexbox CSS로 인해 모바일에서도 줄바꿈 없이 나란히 배치됨
     if login_uinfo.get('role') == 'admin':
-        c_space, c_admin, c_logout = st.columns([0.4, 0.3, 0.3])
+        c_logout, c_toggle = st.columns([0.3, 0.7])
         
-        with c_admin:
-            # 관리자 모드 버튼 (활성화 시 색상 변경 로직은 CSS .admin-active로 처리)
-            btn_label = "🔧 관리자 ON" if st.session_state.admin_mode else "🔧 관리자 모드"
-            if st.session_state.admin_mode:
-                st.markdown('<div class="admin-active">', unsafe_allow_html=True)
-            
-            if st.button(btn_label, key="btn_admin"):
-                st.session_state.admin_mode = not st.session_state.admin_mode
-                st.rerun()
-                
-            if st.session_state.admin_mode:
-                st.markdown('</div>', unsafe_allow_html=True)
-
         with c_logout:
             if st.button("로그아웃", key="btn_logout"):
                 st.session_state.login_status = False
-                st.session_state.admin_mode = False # 로그아웃 시 관리자 모드 해제
+                st.session_state.admin_mode = False 
                 st.rerun()
-        
-        # 관리자 모드일 때만 사용자 선택창 표시
+                
+        with c_toggle:
+            # 관리자 모드 토글 (우측 정렬됨)
+            is_admin_on = st.toggle("🔧 관리자 모드", value=st.session_state.admin_mode, key="admin_toggle_ui")
+            st.session_state.admin_mode = is_admin_on # 상태 동기화
+
+        # 데이터 조회 대상 결정
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
-            st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
+            target_uid = st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
+            
+            # 관리자 모드 알림띠
+            if target_uid != login_uid:
+                st.markdown(f'<div class="viewing-alert">👀 현재 <b>{target_uid}</b>님의 데이터를 조회 중입니다.</div>', unsafe_allow_html=True)
+        else:
+            target_uid = login_uid
             
     else:
-        # 일반 사용자: 로그아웃 버튼만 우측에
+        # 일반 사용자는 로그아웃 버튼만 우측 끝에 배치
         c_space, c_logout = st.columns([0.7, 0.3])
         with c_logout:
             if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
+        target_uid = login_uid
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
@@ -332,20 +339,16 @@ else:
             except: pass
         return 0.0
 
-    # [Ver 1.6] 숫자 포맷팅 함수 (정수면 .0 제거)
+    # 숫자 포맷팅
     def format_leave_num(val):
         if pd.isna(val) or math.isnan(val): return "∞"
-        if val % 1 == 0: return f"{int(val)}개" # 정수면 int로 변환
-        return f"{val}개" # 소수점 있으면 그대로
+        if val % 1 == 0: return f"{int(val)}개" 
+        return f"{val}개"
 
     tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
     
     def tab_header(text):
-        # [Ver 1.6] 투명 벽돌(tab-brick)로 높이 강제 고정
-        st.markdown(f"""
-        <div class="tab-brick"></div>
-        <div class="tab-section-header">{text}</div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class="tab-brick"></div><div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
     
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -383,7 +386,6 @@ else:
                     final_str = "∞"
                 else:
                     total_calc = base_remain + bonus - rt_used
-                    # [Ver 1.6] 포맷팅 적용
                     final_str = format_leave_num(total_calc)
                     
                     if bonus > 0: st.success(f"🎊 갱신 연차 +{format_leave_num(bonus)} 자동 합산됨")
@@ -402,7 +404,6 @@ else:
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 r = me.iloc[0]
-                # [Ver 1.6] 포맷팅 적용
                 used_str = format_leave_num(float(r['사용개수']))
                 remain_str = format_leave_num(float(r['잔여']))
                 render_metric_card("이번달 사용", used_str, "당월 잔여", remain_str)
@@ -415,7 +416,6 @@ else:
             if not me.empty:
                 r = me.iloc[0]
                 st.info(f"📅 갱신일: **{r['갱신일']}**")
-                # [Ver 1.6] 포맷팅 적용
                 add_str = format_leave_num(float(r['갱신개수']))
                 st.markdown(f"<div class='renewal-value'>+{add_str}</div>", unsafe_allow_html=True)
                 st.markdown("<div style='text-align: center; color: #888; font-size: 0.9rem;'>추가 발생</div>", unsafe_allow_html=True)
@@ -423,6 +423,11 @@ else:
 
     with tab4:
         tab_header("비밀번호 변경")
+        
+        # 관리자가 다른 사람 비번 바꿀 때 경고
+        if login_uid != target_uid:
+             st.warning(f"⚠️ 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
+
         with st.form("pw"):
             p1, p2 = st.text_input("새 비번", type="password"), st.text_input("확인", type="password")
             if st.form_submit_button("저장"):
