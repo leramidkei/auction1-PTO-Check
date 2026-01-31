@@ -1,9 +1,9 @@
-# [Ver 1.8] 옥션원 서울지사 연차확인 시스템
+# [Ver 1.9] 옥션원 서울지사 연차확인 시스템
 # Update: 2026-02-01
 # Changes: 
-# - 관리자/로그아웃 버튼 좌우 배치 및 모바일 화면 이탈(Overflow) 방지
-# - 탭 전환 시 상단 짤림 현상 완화를 위한 상단 여백 재조정
-# - 정수 포맷팅(.0 제거) 유지
+# - 관리자 버튼 텍스트 축소 ("관리자")
+# - 모바일 환경 강제 가로 정렬 CSS 주입 (줄바꿈 원천 봉쇄)
+# - 로그아웃(우) / 관리자(좌) 배치 유지
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 1.8)
+# 1. 페이지 설정 및 CSS (Ver 1.9)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -30,17 +30,14 @@ st.markdown("""
     
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
-    /* 메인 컨테이너 - 상단 여백을 넉넉히 주어 스크롤 튀는 현상 방어 */
     .block-container {
-        max-width: 480px; 
-        padding-top: 4rem; /* 상단 여백 확보 */
-        padding-bottom: 5rem;
+        max-width: 480px; padding-top: 4rem; padding-bottom: 5rem;
         padding-left: 1.2rem; padding-right: 1.2rem;
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    /* 로그인 화면 스타일 */
+    /* 로그인 화면 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
@@ -58,36 +55,32 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* [Ver 1.8 핵심] 컨트롤 패널 레이아웃 고정 */
-    /* 버튼과 토글이 있는 컬럼들이 절대 줄바꿈되지 않도록 강제 */
-    div[data-testid="column"] {
-        display: flex;
-        align-items: center; /* 수직 중앙 정렬 */
-        min-width: 0; /* 내용물이 넘치면 줄어들게 설정 (가출 방지) */
+    /* [Ver 1.9 핵심] 모바일 강제 가로 정렬 CSS */
+    /* 화면이 좁아져도(max-width: 640px) 컬럼들이 줄바꿈되지 않도록 강제함 */
+    @media (max-width: 640px) {
+        div[data-testid="column"] {
+            width: 50% !important;   /* 너비 강제 50% */
+            flex: 1 1 auto !important;
+            min-width: 0 !important; /* 최소 너비 제한 해제 */
+        }
+        div[data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important; /* 절대 줄바꿈 금지 */
+        }
     }
 
     /* 관리자 토글 스타일 (좌측) */
     .stToggle {
-        display: flex;
-        justify-content: flex-start;
-        white-space: nowrap; /* 텍스트 줄바꿈 방지 */
+        display: flex; justify-content: flex-start;
+        padding-top: 5px; /* 높이 미세 조정 */
     }
-    .stToggle label {
-        font-size: 0.85rem;
-        color: #666;
-    }
+    .stToggle label { font-size: 0.85rem; color: #666; font-weight: 600; }
 
     /* 로그아웃 버튼 스타일 (우측) */
-    .stButton {
-        width: 100%;
-        display: flex;
-        justify-content: flex-end; /* 버튼을 오른쪽 끝으로 */
-    }
+    .stButton { width: 100%; display: flex; justify-content: flex-end; }
     .stButton button {
         background-color: #f1f3f5; color: #868e96; font-weight: 600;
-        border: 1px solid #dee2e6; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem;
-        width: auto; /* 버튼 크기 자동 */
-        white-space: nowrap;
+        border: 1px solid #dee2e6; padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.85rem;
+        width: auto; white-space: nowrap;
     }
     .stButton button:hover { background-color: #e9ecef; color: #495057; }
 
@@ -110,7 +103,6 @@ st.markdown("""
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
     
     .tab-brick { height: 20px; width: 100%; display: block; }
-
     .tab-section-header {
         font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px;
         padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
@@ -119,6 +111,11 @@ st.markdown("""
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
+    
+    .viewing-alert {
+        background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
+        text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -241,7 +238,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 1.8)
+# 4. 메인 로직 (Ver 1.9)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -268,14 +265,13 @@ else:
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
     
-    if 'admin_mode' not in st.session_state:
-        st.session_state.admin_mode = False
+    if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
 
     target_uid = login_uid
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 1.8</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 1.9</div>', unsafe_allow_html=True)
 
     uinfo = st.session_state.user_db.get(target_uid, {})
     temp_uinfo = uinfo
@@ -291,27 +287,29 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 1.8 핵심] 컨트롤 패널 (좌: 관리자 / 우: 로그아웃)
-    # 컬럼 비율을 [0.6, 0.4]로 나누어 각자의 공간 확보
+    # [Ver 1.9 핵심] 컨트롤 패널 (좌: 관리자 / 우: 로그아웃)
+    # CSS에서 강제로 줄바꿈을 막아놨으므로 한 줄 유지됨
     if login_uinfo.get('role') == 'admin':
         c_toggle, c_logout = st.columns([0.6, 0.4])
         
         with c_toggle:
-            # 관리자 모드 토글 (왼쪽 정렬)
-            st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
+            # 관리자 모드 토글 (글자 축소)
+            st.toggle("관리자", key="admin_mode_toggle")
             st.session_state.admin_mode = st.session_state.admin_mode_toggle
 
         with c_logout:
             # 로그아웃 버튼 (오른쪽 정렬)
             if st.button("로그아웃", key="btn_logout"):
-                st.session_state.login_status = False
-                st.session_state.admin_mode = False
-                st.rerun()
+                st.session_state.login_status = False; st.session_state.admin_mode = False; st.rerun()
         
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
             st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
             st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
+            
+            # 관리자 알림띠
+            if target_uid != login_uid:
+                st.markdown(f'<div class="viewing-alert">👀 현재 <b>{target_uid}</b>님의 데이터를 조회 중입니다.</div>', unsafe_allow_html=True)
     else:
         c_space, c_logout = st.columns([0.6, 0.4])
         with c_logout:
@@ -370,7 +368,6 @@ else:
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
-                
                 rt_used = 0.0
                 rt_msg = ""
                 try:
@@ -380,12 +377,10 @@ else:
                         rt_msg = st.session_state.realtime_data[target_uid].get('details', '')
                 except: pass
 
-                if pd.isna(base_remain):
-                    final_str = "∞"
+                if pd.isna(base_remain): final_str = "∞"
                 else:
                     total_calc = base_remain + bonus - rt_used
                     final_str = format_leave_num(total_calc)
-                    
                     if bonus > 0: st.success(f"🎊 갱신 연차 +{format_leave_num(bonus)} 자동 합산됨")
                     if rt_used > 0: st.markdown(f"<span class='realtime-badge'>📉 실시간 -{format_leave_num(rt_used)} 반영됨</span>", unsafe_allow_html=True)
 
@@ -421,6 +416,8 @@ else:
 
     with tab4:
         tab_header("비밀번호 변경")
+        if login_uid != target_uid:
+             st.warning(f"⚠️ 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
         with st.form("pw"):
             p1, p2 = st.text_input("새 비번", type="password"), st.text_input("확인", type="password")
             if st.form_submit_button("저장"):
