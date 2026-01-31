@@ -1,8 +1,9 @@
-# [Ver 2.6] 옥션원 서울지사 연차확인 시스템 (Hotfix: NameError)
+# [Ver 2.7] 옥션원 서울지사 연차확인 시스템 (Layout Force Override)
 # Update: 2026-02-01
 # Changes: 
-# - [Bug Fix] 정의되지 않은 변수(temp_uinfo) 참조 오류 해결 -> admin_uinfo로 교체
-# - [UI] 프로필 카드는 항상 로그인한 본인(관리자) 정보로 고정
+# - [CSS] 'flex-wrap: nowrap !important'로 모바일 버튼 줄바꿈 원천 봉쇄
+# - [CSS] 관리자 토글 컨테이너 강제 중앙 정렬
+# - [CSS] 탭 내부 첫 요소(Header) 높이/여백 물리적 통일 (흔들림 방지)
 
 import streamlit as st
 import pandas as pd
@@ -19,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 2.6)
+# 1. 페이지 설정 및 CSS (Ver 2.7)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -36,15 +37,52 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    /* 탭 흔들림 방지 */
-    div[data-baseweb="tab-panel"] {
-        padding-top: 20px !important;
-        padding-bottom: 0px !important;
+    /* ----------------------------------------------------------------------
+       [Ver 2.7 핵심] 레이아웃 강제 고정 섹션 (절대 수정 주의)
+       ---------------------------------------------------------------------- */
+    
+    /* 1. 모바일에서 가로 배치된 컬럼들이 절대 세로로 쌓이지 않게 강제함 (저장/로그아웃 버튼용) */
+    div[data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important;
+        gap: 10px !important; /* 버튼 사이 간격 */
     }
-    div[data-baseweb="tab-panel"] > div:first-child {
+    
+    /* 컬럼의 최소 너비를 보장하여 찌그러짐 방지 */
+    div[data-testid="column"] {
+        min-width: 0px !important;
+        flex: 1 1 0px !important;
+        width: auto !important;
+    }
+
+    /* 2. 관리자 토글(Checkbox/Toggle) 강제 중앙 정렬 */
+    /* Streamlit Toggle은 복잡한 div 구조라 상위 요소부터 잡아야 함 */
+    .stToggle {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+    /* 토글 내부 라벨(글자) 중앙 정렬 */
+    .stToggle label {
+        text-align: center !important;
+        width: 100% !important;
+    }
+
+    /* 3. 탭 상단 흔들림 방지 (모든 탭의 첫 요소 스타일 고정) */
+    .fixed-tab-header {
+        display: flex;
+        align-items: center;
+        height: 40px; /* 높이 고정 */
         margin-top: 0px !important;
-        padding-top: 0px !important;
+        margin-bottom: 20px !important;
+        padding-top: 10px;
+        border-left: 4px solid #5D9CEC;
+        padding-left: 10px;
+        font-weight: 800;
+        color: #495057;
+        font-size: 1.1rem;
     }
+    /* ---------------------------------------------------------------------- */
 
     /* 로그인 화면 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
@@ -78,38 +116,28 @@ st.markdown("""
 
     .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
 
-    /* 탭 헤더 */
+    /* 탭 스타일 */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
     
-    .tab-section-header {
-        font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px;
-        padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
-    }
-
     /* 버튼 스타일 */
     .stButton button {
-        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100%;
+        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100% !important;
     }
-    /* 저장 버튼 */
+    /* 저장 버튼 (Tab 4 첫번째 버튼) */
     div[data-testid="column"]:nth-of-type(1) .stButton button {
-        background-color: #5D9CEC; color: white; border: none;
+        background-color: #5D9CEC !important; color: white !important; border: none;
     }
-    div[data-testid="column"]:nth-of-type(1) .stButton button:hover { background-color: #4A89DC; }
-    /* 로그아웃 버튼 */
+    /* 로그아웃 버튼 (Tab 4 두번째 버튼) */
     div[data-testid="column"]:nth-of-type(2) .stButton button {
-        background-color: #f1f3f5; color: #868e96; border: 1px solid #dee2e6;
+        background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6 !important;
     }
-    div[data-testid="column"]:nth-of-type(2) .stButton button:hover { background-color: #e9ecef; }
-
-    /* 관리자 토글 */
-    .stToggle { display: flex; justify-content: center; }
-    .stToggle label p { font-weight: 700; color: #555; }
 
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
+    
     .viewing-alert {
         background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
         text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba;
@@ -236,7 +264,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 2.6)
+# 4. 메인 로직 (Ver 2.7)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -269,9 +297,10 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 2.6</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 2.7</div>', unsafe_allow_html=True)
 
-    # [수정] 프로필 카드 데이터 소스 = 로그인한 본인(관리자)
+    # 프로필 카드
+    uinfo = st.session_state.user_db.get(target_uid, {})
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
 
     st.markdown(f"""
@@ -285,20 +314,17 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # 관리자 토글 (중앙 정렬)
+    # 관리자 토글 (CSS로 강제 중앙 정렬됨)
     if login_uinfo.get('role') == 'admin':
-        st.markdown('<div class="admin-toggle-container">', unsafe_allow_html=True)
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
-        st.markdown('</div>', unsafe_allow_html=True)
         
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
             st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
-            
-            # 알림띠: 현재 조회 중인 대상 표시
             if target_uid != login_uid:
                 st.markdown(f'<div class="viewing-alert">👀 현재 <b>{target_uid}</b>님의 데이터를 조회 중입니다.</div>', unsafe_allow_html=True)
+            st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
@@ -328,8 +354,9 @@ else:
 
     tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
     
+    # [Ver 2.7] 탭 헤더 (CSS 클래스로 고정)
     def tab_header(text):
-        st.markdown(f"""<div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
+        st.markdown(f"""<div class="fixed-tab-header">{text}</div>""", unsafe_allow_html=True)
     
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -409,7 +436,8 @@ else:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        c_save, c_logout = st.columns([1, 1])
+        # [Ver 2.7] CSS로 'flex-wrap: nowrap !important'가 적용되어 절대 줄바꿈 안됨
+        c_save, c_logout = st.columns(2)
         with c_save:
             if st.button("저장", use_container_width=True):
                 if p1 and p2:
