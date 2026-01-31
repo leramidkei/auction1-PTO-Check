@@ -1,9 +1,9 @@
-# [Ver 3.0] 옥션원 서울지사 연차확인 시스템 (Full-Width Admin & Tab Balance)
+# [Ver 3.1] 옥션원 서울지사 연차확인 시스템 (UI Polish)
 # Update: 2026-02-01
 # Changes: 
-# - [UI] 관리자 토글을 'Full-Width 카드' 형태로 변경하여 강제 중앙 정렬 구현
-# - [Tab] 월별/설정 탭 상단 스페이서 15px -> 22px로 증량 (높이 균형 조절)
-# - [Layout] 기존 로직 유지 및 CSS 최적화
+# - [UI] 관리자 토글: Wrapper 제거 후 위젯 자체에 CSS 스타일(회색 박스) 적용 -> 글자/아이콘 통합
+# - [Tab] 월별/설정 탭: '물리적 투명 벽돌(Spacer)' 코드로 교체하여 확실한 높이 확보
+# - [Etc] 설정 탭 버튼 현상 유지
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 3.0)
+# 1. 페이지 설정 및 CSS (Ver 3.1)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -55,33 +55,28 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* [Ver 3.0 핵심] 관리자 토글 Full-Width 디자인 */
-    /* 토글을 감싸는 박스를 만들어서 버튼처럼 보이게 함 */
-    .admin-toggle-box {
-        background-color: #f1f3f5;
-        border-radius: 12px;
-        padding: 10px 0;
-        margin-bottom: 10px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        width: 100%;
-        border: 1px solid #dee2e6;
-    }
-    
-    /* Streamlit Toggle 내부 정렬 강제 */
+    /* [Ver 3.1 핵심] 관리자 토글 스타일링 (위젯 자체를 꾸밈) */
     .stToggle {
+        background-color: #f1f3f5; /* 회색 배경 */
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        padding: 15px 10px; /* 내부 여백 */
+        margin-bottom: 10px;
+        
+        /* 내부 정렬 */
         display: flex !important;
+        flex-direction: row !important; /* 가로 정렬 */
         justify-content: center !important;
         align-items: center !important;
-        width: 100% !important;
     }
+    
+    /* 토글 내부 라벨(글자) 스타일 */
     div[data-testid="stWidgetLabel"] {
-        margin-right: 15px; /* 글자와 스위치 사이 간격 */
-        flex: unset !important; /* 늘어나지 않게 */
+        margin-right: 10px; /* 스위치와의 간격 */
+        padding-bottom: 0px !important; /* 하단 여백 제거 */
     }
     .stToggle label p {
-        font-weight: 800; color: #495057; font-size: 1rem;
+        font-weight: 800; color: #495057; font-size: 1rem; margin-bottom: 0px;
     }
 
     /* 메트릭 박스 */
@@ -124,9 +119,20 @@ st.markdown("""
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
+    
     .viewing-alert {
         background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
         text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba;
+    }
+    
+    /* [Ver 3.1 핵심] 물리적 투명 벽돌 스타일 */
+    .physical-spacer {
+        width: 100%;
+        height: 30px !important; /* 높이 강제 */
+        min-height: 30px !important;
+        display: block !important; /* 화면에서 공간 차지 강제 */
+        visibility: hidden; /* 눈에만 안 보이게 */
+        margin-bottom: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -250,7 +256,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.0)
+# 4. 메인 로직 (Ver 3.1)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -283,7 +289,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.0</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.1</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -300,14 +306,10 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 3.0] 관리자 토글 - Full Width 박스 적용 (강제 중앙 정렬)
+    # [Ver 3.1 핵심] 관리자 토글 - Wrapper 제거하고 위젯 자체에 스타일 적용
     if login_uinfo.get('role') == 'admin':
-        # 아래 div로 토글을 감싸서 스타일 적용
-        st.markdown('<div class="admin-toggle-box">', unsafe_allow_html=True)
-        # CSS가 stToggle을 중앙 정렬시킴
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
-        st.markdown('</div>', unsafe_allow_html=True)
         
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
@@ -348,9 +350,9 @@ else:
     def tab_header(text):
         st.markdown(f"""<div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
     
-    # [Ver 3.0 핵심] 스페이서 높이 22px로 증량 (탭 높이 밸런스)
+    # [Ver 3.1 핵심] 물리적 투명 벽돌 (Spacer) - display: block 강제
     def tab_spacer():
-        st.markdown('<div style="height: 22px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="physical-spacer"></div>', unsafe_allow_html=True)
 
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -364,7 +366,7 @@ else:
         """, unsafe_allow_html=True)
 
     with tab1:
-        # 잔여 탭: 스페이서 없음
+        # 잔여 탭: 스페이서 X
         tab_header("현재 잔여 연차 확인")
         if monthly_files:
             latest_fname = monthly_files[0]['name']
@@ -396,7 +398,7 @@ else:
             else: st.warning("데이터가 없습니다.")
 
     with tab2:
-        # [Ver 3.0] 월별 탭: 22px 스페이서 적용
+        # [Ver 3.1] 월별 탭: 투명 벽돌(Spacer) 적용
         tab_spacer()
         tab_header("월별 사용 내역 조회")
         opts = {f['name']: f['id'] for f in monthly_files}
@@ -412,7 +414,7 @@ else:
                 st.info(f"내역: {r['사용내역']}")
 
     with tab3:
-        # 갱신 탭: 스페이서 없음
+        # 갱신 탭: 스페이서 X
         tab_header("연차 갱신 및 발생 내역")
         if not renewal_df.empty:
             me = renewal_df[renewal_df['이름'] == target_uid]
@@ -425,7 +427,7 @@ else:
         else: st.info("갱신 정보가 없습니다.")
 
     with tab4:
-        # [Ver 3.0] 설정 탭: 22px 스페이서 적용
+        # [Ver 3.1] 설정 탭: 투명 벽돌(Spacer) 적용
         tab_spacer()
         tab_header("설정 및 로그아웃")
         if login_uid != target_uid:
