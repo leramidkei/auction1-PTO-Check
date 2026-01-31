@@ -1,9 +1,9 @@
-# [Ver 3.2] 옥션원 서울지사 연차확인 시스템 (Physical Layout Override)
+# [Ver 3.3] 옥션원 서울지사 연차확인 시스템 (Hardcoded Layout)
 # Update: 2026-02-01
 # Changes: 
-# - [Button] 모바일(@media 640px)에서 Flex-direction: row !important 강제 (세로 쌓임 방지)
-# - [Admin] 토글 위젯 자체를 CSS로 성형하여 '회색 카드'처럼 보이게 변경 (중앙 정렬 포함)
-# - [Tab] 월별/설정 탭 상단에 '&nbsp;'(공백)가 포함된 물리적 스페이서 삽입 (높이 강제 확보)
+# - [Tab] 모든 탭 최상단에 '20px 투명 막대' 강제 삽입 -> 시작 높이 물리적 통일
+# - [Button] 모바일 환경에서 버튼 너비를 '48%'로 강제 지정 -> 화면 이탈 방지
+# - [Layout] 불필요한 여백 제거 및 레이아웃 압축
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 3.2)
+# 1. 페이지 설정 및 CSS (Ver 3.3)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -39,63 +39,59 @@ st.markdown("""
     }
 
     /* ----------------------------------------------------------------------
-       [Ver 3.2 Fix 1] 모바일 버튼 강제 가로 정렬
-       화면이 좁아져도(모바일) flex-direction을 row로 고정하고 너비를 50%로 강제함
+       [Ver 3.3 Fix 1] 모바일 버튼 크기 강제 조절 (삐져나감 방지)
        ---------------------------------------------------------------------- */
     @media only screen and (max-width: 640px) {
-        /* 가로 배치 컨테이너 강제 */
+        /* 가로 배치 강제 */
         div[data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
+            gap: 0.5rem !important; /* 간격 좁힘 */
         }
-        /* 내부 컬럼 강제 50:50 */
+        /* 컬럼 너비를 48%로 강제해서 한 줄에 2개가 넉넉히 들어가게 함 */
         div[data-testid="column"] {
-            width: 50% !important;
-            flex: 1 1 50% !important;
-            min-width: 50% !important;
+            width: 48% !important;
+            flex: 0 0 48% !important;
+            min-width: 0 !important;
+        }
+        /* 버튼 자체도 꽉 채우기 */
+        .stButton button {
+            width: 100% !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
         }
     }
 
     /* ----------------------------------------------------------------------
-       [Ver 3.2 Fix 2] 관리자 토글 디자인 성형 (위젯 자체를 꾸밈)
+       [Ver 3.3 Fix 2] 탭 상단 높이 통일용 투명 막대
        ---------------------------------------------------------------------- */
+    .universal-spacer {
+        width: 100%;
+        height: 20px !important;
+        margin-bottom: 10px !important;
+        display: block;
+        background-color: transparent;
+    }
+
+    /* 관리자 토글 디자인 */
     .stToggle {
-        background-color: #f8f9fa; /* 연한 회색 배경 */
+        background-color: #f8f9fa;
         border: 1px solid #e9ecef;
         border-radius: 12px;
-        padding: 15px 0px; /* 위아래 패딩 */
-        margin-top: 10px;
-        margin-bottom: 10px;
-        
-        /* 내용물 중앙 정렬 */
+        padding: 12px 0px;
+        margin-top: 10px; margin-bottom: 10px;
         display: flex !important;
         justify-content: center !important;
         align-items: center !important;
     }
-    
-    /* 토글 내부 라벨(글자) */
-    .stToggle label {
-        margin-right: 10px; /* 스위치와 글자 사이 간격 */
-    }
-    .stToggle label p {
-        font-weight: 700; color: #495057; font-size: 1rem;
-    }
+    div[data-testid="stWidgetLabel"] { margin-right: 8px; padding-bottom: 0px !important; }
+    .stToggle label p { font-weight: 700; color: #495057; font-size: 0.95rem; margin-bottom: 0px; }
 
-    /* ----------------------------------------------------------------------
-       [Ver 3.2 Fix 3] 물리적 스페이서 (탭 높이 조절용)
-       ---------------------------------------------------------------------- */
-    .tab-spacer-box {
-        line-height: 5px; /* 높이 미세 조절 */
-        font-size: 1px;
-        visibility: hidden; /* 눈에는 안 보임 */
-    }
-
-    /* 로그인 화면 */
+    /* 기본 UI 스타일 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
 
-    /* 프로필 카드 */
     .profile-card {
         display: grid; grid-template-columns: 1.4fr 1fr; 
         background-color: #F0F8FF; border-radius: 20px; overflow: hidden;
@@ -108,7 +104,6 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* 메트릭 박스 */
     .metric-box {
         display: flex; justify-content: space-between; align-items: center;
         background-color: #fff; border: 1px solid #eee; border-radius: 16px;
@@ -122,7 +117,6 @@ st.markdown("""
 
     .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
 
-    /* 탭 스타일 */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
@@ -133,25 +127,16 @@ st.markdown("""
     }
 
     /* 버튼 스타일 */
-    .stButton button {
-        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100% !important;
-    }
+    .stButton button { border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; }
     /* 저장 버튼 */
-    div[data-testid="column"]:nth-of-type(1) .stButton button {
-        background-color: #5D9CEC !important; color: white !important; border: none;
-    }
+    div[data-testid="column"]:nth-of-type(1) .stButton button { background-color: #5D9CEC !important; color: white !important; border: none; }
     /* 로그아웃 버튼 */
-    div[data-testid="column"]:nth-of-type(2) .stButton button {
-        background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6;
-    }
+    div[data-testid="column"]:nth-of-type(2) .stButton button { background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6; }
 
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
-    .viewing-alert {
-        background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
-        text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba;
-    }
+    .viewing-alert { background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -274,7 +259,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.2)
+# 4. 메인 로직 (Ver 3.3)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -307,7 +292,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.2</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.3</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -324,9 +309,8 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 3.2] 관리자 토글 - CSS로 위젯 자체를 '카드'로 변신시킴
+    # 관리자 토글
     if login_uinfo.get('role') == 'admin':
-        # 더 이상 가짜 박스(markdown)를 쓰지 않고, 순수 토글만 배치
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
         
@@ -369,9 +353,9 @@ else:
     def tab_header(text):
         st.markdown(f"""<div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
     
-    # [Ver 3.2] 물리적 스페이서 (공백 문자 포함하여 높이 확보)
-    def tab_spacer():
-        st.markdown('<div class="tab-spacer-box">&nbsp;</div>', unsafe_allow_html=True)
+    # [Ver 3.3] 강제 투명 막대 (모든 탭에 공통 적용)
+    def insert_universal_bar():
+        st.markdown('<div class="universal-spacer"></div>', unsafe_allow_html=True)
 
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -385,7 +369,7 @@ else:
         """, unsafe_allow_html=True)
 
     with tab1:
-        # 잔여 탭: 스페이서 X
+        insert_universal_bar() # 강제 막대
         tab_header("현재 잔여 연차 확인")
         if monthly_files:
             latest_fname = monthly_files[0]['name']
@@ -417,8 +401,7 @@ else:
             else: st.warning("데이터가 없습니다.")
 
     with tab2:
-        # [Ver 3.2] 월별 탭: 공백 포함 스페이서 적용
-        tab_spacer()
+        insert_universal_bar() # 강제 막대
         tab_header("월별 사용 내역 조회")
         opts = {f['name']: f['id'] for f in monthly_files}
         sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
@@ -433,7 +416,7 @@ else:
                 st.info(f"내역: {r['사용내역']}")
 
     with tab3:
-        # 갱신 탭: 스페이서 X
+        insert_universal_bar() # 강제 막대
         tab_header("연차 갱신 및 발생 내역")
         if not renewal_df.empty:
             me = renewal_df[renewal_df['이름'] == target_uid]
@@ -446,8 +429,7 @@ else:
         else: st.info("갱신 정보가 없습니다.")
 
     with tab4:
-        # [Ver 3.2] 설정 탭: 공백 포함 스페이서 적용
-        tab_spacer()
+        insert_universal_bar() # 강제 막대
         tab_header("설정 및 로그아웃")
         if login_uid != target_uid:
              st.warning(f"⚠️ 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
@@ -457,6 +439,7 @@ else:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
+        # [Ver 3.3] 버튼 5:5 배치 및 CSS 강제 사이즈 적용
         c_save, c_logout = st.columns(2)
         with c_save:
             if st.button("저장", use_container_width=True):
