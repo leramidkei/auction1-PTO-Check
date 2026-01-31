@@ -1,9 +1,9 @@
-# [Ver 3.6] 옥션원 서울지사 연차확인 시스템 (Timezone Fix & Security)
+# [Ver 3.7] 옥션원 서울지사 연차확인 시스템 (Stale Data Filter)
 # Update: 2026-02-01
 # Changes: 
-# - [Critical Fix] 서버 시간을 UTC에서 KST(한국 시간)로 강제 보정 (연차 갱신 오류 해결)
-# - [Security] SHA-256 비밀번호 암호화 유지
-# - [Layout] 안정적인 순정 레이아웃(Ver 3.4 기반) 유지
+# - [Smart Logic] 실시간 데이터 파일의 '수정 시간(modifiedTime)'을 확인하여, 
+#                 현재 월(KST)과 다르면 데이터를 0으로 처리 (월 변경 시 이중 차감 방지)
+# - [System] 기존 레이아웃, 보안, 시간대 설정 모두 유지
 
 import streamlit as st
 import pandas as pd
@@ -19,6 +19,7 @@ import os
 import math
 import calendar
 import hashlib
+from dateutil import parser # 날짜 파싱용
 
 # ==============================================================================
 # 1. 페이지 설정 및 CSS
@@ -83,6 +84,7 @@ st.markdown("""
     
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
+    .stale-badge { background-color: #F1F3F5; color: #868E96; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
     .viewing-alert {
         background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
@@ -114,24 +116,29 @@ def get_file_sort_key(filename):
     if match: return (int(match.group(1)), int(match.group(2)))
     return (0, 0)
 
+# [Ver 3.7 Fix] 파일의 수정 시간(modifiedTime)도 함께 가져오도록 수정
 def get_all_files():
     service = get_drive_service()
-    if not service: return None, None, None, []
+    if not service: return None, None, None, [], None
     try:
+        # fields에 modifiedTime 추가
         query = f"'{FOLDER_ID}' in parents and trashed=false"
-        results = service.files().list(q=query, fields="files(id, name)").execute()
+        results = service.files().list(q=query, fields="files(id, name, modifiedTime)").execute()
         all_files = results.get('files', [])
         user_db_id, renewal_id, realtime_id = None, None, None
+        realtime_file_meta = None # 실시간 파일의 메타데이터 저장용
         monthly_files = []
         for f in all_files:
             name = f['name']
             if name == "user_db.json": user_db_id = f['id']
-            elif name == "realtime_usage.json": realtime_id = f['id']
+            elif name == "realtime_usage.json": 
+                realtime_id = f['id']
+                realtime_file_meta = f # 메타데이터 전체 저장
             elif "renewal" in name or "갱신" in name: renewal_id = f['id']
             elif ".xlsx" in name: monthly_files.append(f)
         monthly_files.sort(key=lambda x: get_file_sort_key(x['name']), reverse=True)
-        return user_db_id, renewal_id, realtime_id, monthly_files
-    except: return None, None, None, []
+        return user_db_id, renewal_id, realtime_id, monthly_files, realtime_file_meta
+    except: return None, None, None, [], None
 
 def load_json_file(file_id):
     service = get_drive_service()
@@ -210,7 +217,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 3. 보안 함수 & 시간 함수 (Ver 3.6 핵심)
+# 3. 유틸리티 함수 (보안, 시간)
 # ==============================================================================
 def hash_password(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
@@ -220,17 +227,19 @@ def verify_password(stored_password, input_password):
     if stored_password == input_password: return True
     return False
 
-# [Ver 3.6] 한국 시간(KST) 구하기 함수
+def get_kst_now():
+    """현재 한국 시간(datetime) 반환"""
+    return datetime.datetime.utcnow() + datetime.timedelta(hours=9)
+
 def get_kst_today():
-    # UTC 시간에 9시간을 더해 한국 시간을 만듦
-    utc_now = datetime.datetime.utcnow()
-    kst_now = utc_now + datetime.timedelta(hours=9)
-    return kst_now.date()
+    """현재 한국 날짜(date) 반환"""
+    return get_kst_now().date()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.6)
+# 4. 메인 로직 (Ver 3.7)
 # ==============================================================================
-user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
+# [Ver 3.7] realtime_file_meta를 함께 받음
+user_db_id, renewal_id, realtime_id, monthly_files, realtime_file_meta = get_all_files()
 
 if user_db_id:
     user_db = load_json_file(user_db_id)
@@ -274,7 +283,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.6</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.7</div>', unsafe_allow_html=True)
 
     uinfo = st.session_state.user_db.get(target_uid, {})
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
@@ -297,24 +306,19 @@ else:
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
             st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
-            
             if target_uid != login_uid:
                 st.markdown(f'<div class="viewing-alert">👀 현재 <b>{target_uid}</b>님의 데이터를 조회 중입니다.</div>', unsafe_allow_html=True)
             st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
-    # [Ver 3.6 핵심 Fix] 한국 시간(KST) 기준 날짜 비교 로직
     def get_smart_renewal_bonus(uid, base_filename):
         if renewal_df.empty or not base_filename: return 0.0
         me = renewal_df[renewal_df['이름'] == uid]
         if not me.empty:
             try:
                 renew_date = pd.to_datetime(me.iloc[0]['갱신일']).date()
-                
-                # [Fix] 여기가 핵심입니다. 서버시간(UTC)이 아닌 한국시간(KST)을 가져옵니다.
                 today_kst = get_kst_today()
-                
                 match = re.search(r'(\d{4})_(\d+)', base_filename)
                 if match:
                     f_year, f_month = int(match.group(1)), int(match.group(2))
@@ -322,7 +326,6 @@ else:
                     file_end_date = datetime.date(f_year, f_month, last_day)
                 else: file_end_date = datetime.date(2000, 1, 1)
 
-                # 한국 시간 기준으로 2월 1일이 되었으니 today_kst >= renew_date가 True가 됩니다.
                 if today_kst >= renew_date and renew_date > file_end_date:
                     return float(me.iloc[0]['갱신개수'])
             except: pass
@@ -359,21 +362,33 @@ else:
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
-                
-                # [Ver 3.6 Fix] 한국 시간 기준 갱신 보너스 계산
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
                 
+                # [Ver 3.7 핵심] 실시간 데이터 유효성 검사 (Stale Check)
                 rt_used = 0.0
                 rt_msg = ""
+                rt_valid = False # 유효성 플래그
+                
                 try:
                     file_month = int(re.search(r'(\d+)월', latest_fname).group(1))
+                    today_kst = get_kst_today()
                     
-                    # [Ver 3.6 Fix] 실시간 데이터 비교도 한국 시간 기준 월(Month)로 변경
-                    current_month_kst = get_kst_today().month
-                    
-                    if current_month_kst > file_month and target_uid in st.session_state.realtime_data:
-                        rt_used = st.session_state.realtime_data[target_uid].get('used', 0.0)
-                        rt_msg = st.session_state.realtime_data[target_uid].get('details', '')
+                    if today_kst.month > file_month and target_uid in st.session_state.realtime_data:
+                        # 1. 파일 수정 시간 확인
+                        if realtime_file_meta:
+                            # 구글 드라이브 시간(UTC ISO format) -> 파싱 -> KST 변환
+                            mod_time_utc = parser.parse(realtime_file_meta['modifiedTime'])
+                            mod_time_kst = mod_time_utc + datetime.timedelta(hours=9)
+                            
+                            # 2. 이번 달에 업데이트된 파일인지 확인
+                            if mod_time_kst.month == today_kst.month and mod_time_kst.year == today_kst.year:
+                                # 유효한 데이터
+                                rt_used = st.session_state.realtime_data[target_uid].get('used', 0.0)
+                                rt_msg = st.session_state.realtime_data[target_uid].get('details', '')
+                                rt_valid = True
+                            else:
+                                # 지난달 데이터 (무시)
+                                rt_valid = False
                 except: pass
 
                 if pd.isna(base_remain): final_str = "∞"
@@ -381,10 +396,16 @@ else:
                     total_calc = base_remain + bonus - rt_used
                     final_str = format_leave_num(total_calc)
                     if bonus > 0: st.success(f"🎊 갱신 연차 +{format_leave_num(bonus)} 자동 합산됨")
-                    if rt_used > 0: st.markdown(f"<span class='realtime-badge'>📉 실시간 -{format_leave_num(rt_used)} 반영됨</span>", unsafe_allow_html=True)
+                    
+                    # 실시간 데이터 상태에 따른 표시
+                    if rt_valid and rt_used > 0: 
+                        st.markdown(f"<span class='realtime-badge'>📉 실시간 -{format_leave_num(rt_used)} 반영됨</span>", unsafe_allow_html=True)
+                        st.info(f"📝 **추가 내역:** {rt_msg}")
+                    elif not rt_valid and today_kst.month > file_month:
+                        # 엑셀은 지난달 + 실시간도 지난달인 경우
+                        st.markdown(f"<span class='stale-badge'>📉 실시간 데이터 대기 중 (전월 데이터 무시됨)</span>", unsafe_allow_html=True)
 
                 render_metric_card("현재 예상 잔여", final_str, "기준 파일", latest_fname, is_main=True)
-                if rt_msg: st.info(f"📝 **추가 내역:** {rt_msg}")
             else: st.warning("데이터가 없습니다.")
 
     with tab2:
@@ -407,15 +428,12 @@ else:
             me = renewal_df[renewal_df['이름'] == target_uid]
             if not me.empty:
                 r = me.iloc[0]
-                
-                # [Ver 3.6] 갱신일 표시 로직 개선 (한국 시간 기준 비교)
                 try:
                     rdt = pd.to_datetime(r['갱신일']).date()
                     now_kst = get_kst_today()
                     if rdt > now_kst: st.info(f"📅 **{r['갱신일']}** 갱신 예정")
                     else: st.success(f"✅ **{r['갱신일']}** 갱신 완료")
                 except: st.write(f"📅 {r['갱신일']}")
-                
                 add_str = format_leave_num(float(r['갱신개수']))
                 st.markdown(f"<div class='renewal-value'>+{add_str}</div>", unsafe_allow_html=True)
                 st.markdown("<div style='text-align: center; color: #888; font-size: 0.9rem;'>추가 발생</div>", unsafe_allow_html=True)
