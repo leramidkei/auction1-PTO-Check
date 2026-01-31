@@ -1,9 +1,9 @@
-# [Ver 3.1] 옥션원 서울지사 연차확인 시스템 (UI Polish)
+# [Ver 3.2] 옥션원 서울지사 연차확인 시스템 (Physical Layout Override)
 # Update: 2026-02-01
 # Changes: 
-# - [UI] 관리자 토글: Wrapper 제거 후 위젯 자체에 CSS 스타일(회색 박스) 적용 -> 글자/아이콘 통합
-# - [Tab] 월별/설정 탭: '물리적 투명 벽돌(Spacer)' 코드로 교체하여 확실한 높이 확보
-# - [Etc] 설정 탭 버튼 현상 유지
+# - [Button] 모바일(@media 640px)에서 Flex-direction: row !important 강제 (세로 쌓임 방지)
+# - [Admin] 토글 위젯 자체를 CSS로 성형하여 '회색 카드'처럼 보이게 변경 (중앙 정렬 포함)
+# - [Tab] 월별/설정 탭 상단에 '&nbsp;'(공백)가 포함된 물리적 스페이서 삽입 (높이 강제 확보)
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 3.1)
+# 1. 페이지 설정 및 CSS (Ver 3.2)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -31,10 +31,63 @@ st.markdown("""
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
     .block-container {
-        max-width: 480px; padding-top: 4rem; padding-bottom: 5rem;
+        max-width: 480px; 
+        padding-top: 3rem; padding-bottom: 5rem;
         padding-left: 1.0rem; padding-right: 1.0rem;
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
+    }
+
+    /* ----------------------------------------------------------------------
+       [Ver 3.2 Fix 1] 모바일 버튼 강제 가로 정렬
+       화면이 좁아져도(모바일) flex-direction을 row로 고정하고 너비를 50%로 강제함
+       ---------------------------------------------------------------------- */
+    @media only screen and (max-width: 640px) {
+        /* 가로 배치 컨테이너 강제 */
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+        }
+        /* 내부 컬럼 강제 50:50 */
+        div[data-testid="column"] {
+            width: 50% !important;
+            flex: 1 1 50% !important;
+            min-width: 50% !important;
+        }
+    }
+
+    /* ----------------------------------------------------------------------
+       [Ver 3.2 Fix 2] 관리자 토글 디자인 성형 (위젯 자체를 꾸밈)
+       ---------------------------------------------------------------------- */
+    .stToggle {
+        background-color: #f8f9fa; /* 연한 회색 배경 */
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 15px 0px; /* 위아래 패딩 */
+        margin-top: 10px;
+        margin-bottom: 10px;
+        
+        /* 내용물 중앙 정렬 */
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+    }
+    
+    /* 토글 내부 라벨(글자) */
+    .stToggle label {
+        margin-right: 10px; /* 스위치와 글자 사이 간격 */
+    }
+    .stToggle label p {
+        font-weight: 700; color: #495057; font-size: 1rem;
+    }
+
+    /* ----------------------------------------------------------------------
+       [Ver 3.2 Fix 3] 물리적 스페이서 (탭 높이 조절용)
+       ---------------------------------------------------------------------- */
+    .tab-spacer-box {
+        line-height: 5px; /* 높이 미세 조절 */
+        font-size: 1px;
+        visibility: hidden; /* 눈에는 안 보임 */
     }
 
     /* 로그인 화면 */
@@ -54,30 +107,6 @@ st.markdown("""
     .name-text { font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.3; word-break: keep-all; }
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
-
-    /* [Ver 3.1 핵심] 관리자 토글 스타일링 (위젯 자체를 꾸밈) */
-    .stToggle {
-        background-color: #f1f3f5; /* 회색 배경 */
-        border: 1px solid #dee2e6;
-        border-radius: 12px;
-        padding: 15px 10px; /* 내부 여백 */
-        margin-bottom: 10px;
-        
-        /* 내부 정렬 */
-        display: flex !important;
-        flex-direction: row !important; /* 가로 정렬 */
-        justify-content: center !important;
-        align-items: center !important;
-    }
-    
-    /* 토글 내부 라벨(글자) 스타일 */
-    div[data-testid="stWidgetLabel"] {
-        margin-right: 10px; /* 스위치와의 간격 */
-        padding-bottom: 0px !important; /* 하단 여백 제거 */
-    }
-    .stToggle label p {
-        font-weight: 800; color: #495057; font-size: 1rem; margin-bottom: 0px;
-    }
 
     /* 메트릭 박스 */
     .metric-box {
@@ -105,7 +134,7 @@ st.markdown("""
 
     /* 버튼 스타일 */
     .stButton button {
-        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100%;
+        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100% !important;
     }
     /* 저장 버튼 */
     div[data-testid="column"]:nth-of-type(1) .stButton button {
@@ -119,20 +148,9 @@ st.markdown("""
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
-    
     .viewing-alert {
         background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
         text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba;
-    }
-    
-    /* [Ver 3.1 핵심] 물리적 투명 벽돌 스타일 */
-    .physical-spacer {
-        width: 100%;
-        height: 30px !important; /* 높이 강제 */
-        min-height: 30px !important;
-        display: block !important; /* 화면에서 공간 차지 강제 */
-        visibility: hidden; /* 눈에만 안 보이게 */
-        margin-bottom: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -256,7 +274,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.1)
+# 4. 메인 로직 (Ver 3.2)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -289,7 +307,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.1</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.2</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -306,8 +324,9 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 3.1 핵심] 관리자 토글 - Wrapper 제거하고 위젯 자체에 스타일 적용
+    # [Ver 3.2] 관리자 토글 - CSS로 위젯 자체를 '카드'로 변신시킴
     if login_uinfo.get('role') == 'admin':
+        # 더 이상 가짜 박스(markdown)를 쓰지 않고, 순수 토글만 배치
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
         
@@ -350,9 +369,9 @@ else:
     def tab_header(text):
         st.markdown(f"""<div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
     
-    # [Ver 3.1 핵심] 물리적 투명 벽돌 (Spacer) - display: block 강제
+    # [Ver 3.2] 물리적 스페이서 (공백 문자 포함하여 높이 확보)
     def tab_spacer():
-        st.markdown('<div class="physical-spacer"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="tab-spacer-box">&nbsp;</div>', unsafe_allow_html=True)
 
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -398,7 +417,7 @@ else:
             else: st.warning("데이터가 없습니다.")
 
     with tab2:
-        # [Ver 3.1] 월별 탭: 투명 벽돌(Spacer) 적용
+        # [Ver 3.2] 월별 탭: 공백 포함 스페이서 적용
         tab_spacer()
         tab_header("월별 사용 내역 조회")
         opts = {f['name']: f['id'] for f in monthly_files}
@@ -427,7 +446,7 @@ else:
         else: st.info("갱신 정보가 없습니다.")
 
     with tab4:
-        # [Ver 3.1] 설정 탭: 투명 벽돌(Spacer) 적용
+        # [Ver 3.2] 설정 탭: 공백 포함 스페이서 적용
         tab_spacer()
         tab_header("설정 및 로그아웃")
         if login_uid != target_uid:
