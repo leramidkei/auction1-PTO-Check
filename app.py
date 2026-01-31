@@ -1,9 +1,9 @@
-# [Ver 2.3] 옥션원 서울지사 연차확인 시스템 (Tab Fix & Layout Final)
+# [Ver 2.5] 옥션원 서울지사 연차확인 시스템 (Absolute Layout Fix)
 # Update: 2026-02-01
 # Changes: 
-# - [Fix] 탭 상단 흔들림 원인(Margin Collapse) CSS 강제 초기화로 해결
-# - [Layout] 설정 탭(Tab 4) 하단에 '저장' & '로그아웃' 버튼 5:5 배치
-# - [UI] 관리자 모드 토글 디자인 복구 및 중앙 정렬
+# - [Tab Fix] 탭 패널(tab-panel) 자체에 padding 고정값 강제 적용 -> 흔들림 원천 봉쇄
+# - [Admin Center] st.columns([1,1,1]) 기법으로 물리적 중앙 정렬 구현
+# - [Buttons] 저장/로그아웃 버튼 Flex-nowrap 강제 적용으로 모바일 한 줄 보장
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 2.3)
+# 1. 페이지 설정 및 CSS (Ver 2.5)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -30,7 +30,6 @@ st.markdown("""
     
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
-    /* 메인 컨테이너 */
     .block-container {
         max-width: 480px; padding-top: 4rem; padding-bottom: 5rem;
         padding-left: 1.2rem; padding-right: 1.2rem;
@@ -38,6 +37,18 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
+    /* [Ver 2.5 핵심] 탭 흔들림 방지 (탭 패널 강제 고정) */
+    div[data-baseweb="tab-panel"] {
+        padding-top: 20px !important; /* 상단 여백 픽셀 단위 고정 */
+        padding-bottom: 0px !important;
+    }
+    /* 탭 내부 첫 번째 요소 마진 제거 (간섭 방지) */
+    div[data-baseweb="tab-panel"] > div:first-child {
+        margin-top: 0px !important;
+        padding-top: 0px !important;
+    }
+
+    /* 로그인 화면 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
@@ -69,53 +80,35 @@ st.markdown("""
 
     .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
 
-    /* 탭 스타일 */
+    /* 탭 헤더 */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
     
-    /* [Ver 2.3 해결책] 탭 내부 상단 여백 강제 고정 (마진 병합 방지) */
     .tab-section-header {
-        font-size: 1rem; font-weight: 700; color: #495057; 
-        margin-top: 20px !important; /* 강제 상단 여백 */
-        margin-bottom: 15px;
-        padding-left: 5px; border-left: 4px solid #5D9CEC; 
-        height: 24px; display: flex; align-items: center;
-    }
-    
-    /* 관리자 토글 중앙 정렬 */
-    .admin-toggle-container {
-        display: flex; justify-content: center; align-items: center;
-        margin-bottom: 10px;
-    }
-    /* Streamlit Toggle 위젯 강제 중앙 정렬 */
-    .stToggle {
-        display: flex; justify-content: center;
+        font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px;
+        padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
     }
 
-    /* 버튼 스타일 (설정 탭) */
+    /* 버튼 스타일 */
     .stButton button {
-        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0;
+        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100%;
     }
-    /* 저장 버튼 (Primary Color) */
-    div[data-testid="column"]:nth-of-type(1) .stButton button {
-        background-color: #5D9CEC; color: white; border: none;
-    }
-    div[data-testid="column"]:nth-of-type(1) .stButton button:hover {
-        background-color: #4A89DC;
-    }
-    /* 로그아웃 버튼 (Grey) */
-    div[data-testid="column"]:nth-of-type(2) .stButton button {
-        background-color: #f1f3f5; color: #868e96; border: 1px solid #dee2e6;
-    }
-    div[data-testid="column"]:nth-of-type(2) .stButton button:hover {
-        background-color: #e9ecef;
-    }
+    /* 저장 버튼 (파란색) */
+    .save-btn button { background-color: #5D9CEC !important; color: white !important; border: none; }
+    .save-btn button:hover { background-color: #4A89DC !important; }
+    
+    /* 로그아웃 버튼 (회색) */
+    .logout-btn button { background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6 !important; }
+    .logout-btn button:hover { background-color: #e9ecef !important; }
+
+    /* [Ver 2.5] 관리자 토글 스타일 보정 */
+    .stToggle { display: flex; justify-content: center; }
+    .stToggle label p { font-weight: 700; color: #555; }
 
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
-    
     .viewing-alert {
         background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
         text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba;
@@ -242,7 +235,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 2.3)
+# 4. 메인 로직 (Ver 2.5)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -275,36 +268,36 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 2.3</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 2.5</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
-    # 프로필 상단 이름은 항상 로그인한 본인(관리자)
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
 
     st.markdown(f"""
     <div class="profile-card">
         <div class="card-text">
             <div class="hello-text">반갑습니다,</div>
-            <div class="name-text"><span class="name-highlight">{login_uid} {admin_uinfo.get('title','')}</span>님</div>
+            <div class="name-text"><span class="name-highlight" id="target_name_area">{target_uid} {temp_uinfo.get('title','')}</span>님</div>
             <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
         </div>
         <div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 2.3] 관리자 토글 (중앙 정렬)
+    # [Ver 2.5] 관리자 토글 (Columns 3분할로 물리적 중앙 정렬)
     if login_uinfo.get('role') == 'admin':
-        st.markdown('<div class="admin-toggle-container">', unsafe_allow_html=True)
-        is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
-        st.session_state.admin_mode = is_admin
-        st.markdown('</div>', unsafe_allow_html=True)
+        c_left, c_center, c_right = st.columns([1, 2, 1])
+        with c_center:
+            st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
+            st.session_state.admin_mode = st.session_state.admin_mode_toggle
         
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
             st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
             if target_uid != login_uid:
                 st.markdown(f'<div class="viewing-alert">👀 현재 <b>{target_uid}</b>님의 데이터를 조회 중입니다.</div>', unsafe_allow_html=True)
+            st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
@@ -334,7 +327,7 @@ else:
 
     tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
     
-    # [Ver 2.3] 탭 헤더 출력 함수 (CSS로 상단 여백 강제 고정)
+    # [Ver 2.5] 탭 헤더
     def tab_header(text):
         st.markdown(f"""<div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
     
@@ -411,15 +404,17 @@ else:
         if login_uid != target_uid:
              st.warning(f"⚠️ 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
         
-        # [Ver 2.3] 비밀번호 변경 로직 (Form 제거 -> 직관적 UI)
-        p1 = st.text_input("새 비밀번호", type="password")
-        p2 = st.text_input("비밀번호 확인", type="password")
+        p1 = st.text_input("새 비번", type="password")
+        p2 = st.text_input("확인", type="password")
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # [Ver 2.3] 버튼 5:5 배치 (저장 / 로그아웃)
-        c_save, c_logout = st.columns([1, 1])
+        # [Ver 2.5] 버튼 5:5 배치 및 모바일 강제 고정
+        # CSS에서 div[data-testid="column"]에 width 50% !important를 주었으므로
+        # 여기서는 단순히 columns(2)만 호출하면 됩니다.
+        c_save, c_logout = st.columns(2)
         with c_save:
+            st.markdown('<div class="save-btn">', unsafe_allow_html=True)
             if st.button("저장", use_container_width=True):
                 if p1 and p2:
                     if p1 == p2:
@@ -429,9 +424,12 @@ else:
                         st.success("완료")
                     else: st.error("불일치")
                 else: st.error("입력 필요")
-        
+            st.markdown('</div>', unsafe_allow_html=True)
+            
         with c_logout:
+            st.markdown('<div class="logout-btn">', unsafe_allow_html=True)
             if st.button("로그아웃", use_container_width=True):
                 st.session_state.login_status = False
                 st.session_state.admin_mode = False
                 st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
