@@ -1,9 +1,9 @@
-# [Ver 3.3] 옥션원 서울지사 연차확인 시스템 (Hardcoded Layout)
+# [Ver 3.4] 옥션원 서울지사 연차확인 시스템 (Back to Basic - Stable)
 # Update: 2026-02-01
 # Changes: 
-# - [Tab] 모든 탭 최상단에 '20px 투명 막대' 강제 삽입 -> 시작 높이 물리적 통일
-# - [Button] 모바일 환경에서 버튼 너비를 '48%'로 강제 지정 -> 화면 이탈 방지
-# - [Layout] 불필요한 여백 제거 및 레이아웃 압축
+# - [CSS Removal] 충돌을 일으키는 강제 CSS 코드 전량 삭제
+# - [Layout] Streamlit 순정 기능을 사용하여 모바일 호환성 100% 확보
+# - [Structure] 설정 탭 버튼 세로 배치, 탭 헤더 단순화
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 3.3)
+# 1. 페이지 설정 및 기본 CSS (Ver 3.4 - 순정 모드)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -32,66 +32,18 @@ st.markdown("""
 
     .block-container {
         max-width: 480px; 
-        padding-top: 3rem; padding-bottom: 5rem;
-        padding-left: 1.0rem; padding-right: 1.0rem;
+        padding-top: 2rem; padding-bottom: 5rem;
+        padding-left: 1.2rem; padding-right: 1.2rem;
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    /* ----------------------------------------------------------------------
-       [Ver 3.3 Fix 1] 모바일 버튼 크기 강제 조절 (삐져나감 방지)
-       ---------------------------------------------------------------------- */
-    @media only screen and (max-width: 640px) {
-        /* 가로 배치 강제 */
-        div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 0.5rem !important; /* 간격 좁힘 */
-        }
-        /* 컬럼 너비를 48%로 강제해서 한 줄에 2개가 넉넉히 들어가게 함 */
-        div[data-testid="column"] {
-            width: 48% !important;
-            flex: 0 0 48% !important;
-            min-width: 0 !important;
-        }
-        /* 버튼 자체도 꽉 채우기 */
-        .stButton button {
-            width: 100% !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-        }
-    }
-
-    /* ----------------------------------------------------------------------
-       [Ver 3.3 Fix 2] 탭 상단 높이 통일용 투명 막대
-       ---------------------------------------------------------------------- */
-    .universal-spacer {
-        width: 100%;
-        height: 20px !important;
-        margin-bottom: 10px !important;
-        display: block;
-        background-color: transparent;
-    }
-
-    /* 관리자 토글 디자인 */
-    .stToggle {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 12px;
-        padding: 12px 0px;
-        margin-top: 10px; margin-bottom: 10px;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-    }
-    div[data-testid="stWidgetLabel"] { margin-right: 8px; padding-bottom: 0px !important; }
-    .stToggle label p { font-weight: 700; color: #495057; font-size: 0.95rem; margin-bottom: 0px; }
-
-    /* 기본 UI 스타일 */
+    /* 로그인 화면 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
 
+    /* 프로필 카드 */
     .profile-card {
         display: grid; grid-template-columns: 1.4fr 1fr; 
         background-color: #F0F8FF; border-radius: 20px; overflow: hidden;
@@ -104,6 +56,7 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
+    /* 메트릭 박스 */
     .metric-box {
         display: flex; justify-content: space-between; align-items: center;
         background-color: #fff; border: 1px solid #eee; border-radius: 16px;
@@ -117,7 +70,8 @@ st.markdown("""
 
     .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
 
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
+    /* 탭 스타일 */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 10px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
     
@@ -127,16 +81,17 @@ st.markdown("""
     }
 
     /* 버튼 스타일 */
-    .stButton button { border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; }
-    /* 저장 버튼 */
-    div[data-testid="column"]:nth-of-type(1) .stButton button { background-color: #5D9CEC !important; color: white !important; border: none; }
-    /* 로그아웃 버튼 */
-    div[data-testid="column"]:nth-of-type(2) .stButton button { background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6; }
-
+    .stButton button {
+        border-radius: 10px; font-weight: 700; font-size: 0.95rem; padding: 0.6rem 0; width: 100%;
+    }
+    
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
     .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
-    .viewing-alert { background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba; }
+    .viewing-alert {
+        background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; 
+        text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -259,7 +214,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.3)
+# 4. 메인 로직 (Ver 3.4)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -292,7 +247,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.3</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.4</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -309,8 +264,9 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # 관리자 토글
+    # 관리자 토글 (순정 기능 사용)
     if login_uinfo.get('role') == 'admin':
+        # CSS 해제 후 단순 배치
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
         
@@ -353,10 +309,6 @@ else:
     def tab_header(text):
         st.markdown(f"""<div class="tab-section-header">{text}</div>""", unsafe_allow_html=True)
     
-    # [Ver 3.3] 강제 투명 막대 (모든 탭에 공통 적용)
-    def insert_universal_bar():
-        st.markdown('<div class="universal-spacer"></div>', unsafe_allow_html=True)
-
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
         val2_style = "metric-value-sub" if is_main else "metric-value-large"
@@ -369,7 +321,6 @@ else:
         """, unsafe_allow_html=True)
 
     with tab1:
-        insert_universal_bar() # 강제 막대
         tab_header("현재 잔여 연차 확인")
         if monthly_files:
             latest_fname = monthly_files[0]['name']
@@ -401,7 +352,6 @@ else:
             else: st.warning("데이터가 없습니다.")
 
     with tab2:
-        insert_universal_bar() # 강제 막대
         tab_header("월별 사용 내역 조회")
         opts = {f['name']: f['id'] for f in monthly_files}
         sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
@@ -416,7 +366,6 @@ else:
                 st.info(f"내역: {r['사용내역']}")
 
     with tab3:
-        insert_universal_bar() # 강제 막대
         tab_header("연차 갱신 및 발생 내역")
         if not renewal_df.empty:
             me = renewal_df[renewal_df['이름'] == target_uid]
@@ -429,7 +378,6 @@ else:
         else: st.info("갱신 정보가 없습니다.")
 
     with tab4:
-        insert_universal_bar() # 강제 막대
         tab_header("설정 및 로그아웃")
         if login_uid != target_uid:
              st.warning(f"⚠️ 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
@@ -439,21 +387,19 @@ else:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # [Ver 3.3] 버튼 5:5 배치 및 CSS 강제 사이즈 적용
-        c_save, c_logout = st.columns(2)
-        with c_save:
-            if st.button("저장", use_container_width=True):
-                if p1 and p2:
-                    if p1 == p2:
-                        st.session_state.user_db[target_uid]['pw'] = p1
-                        st.session_state.user_db[target_uid]['first_login'] = False
-                        save_user_db(user_db_id, st.session_state.user_db)
-                        st.success("완료")
-                    else: st.error("불일치")
-                else: st.error("입력 필요")
+        # [Ver 3.4] 버튼 2개 세로 배치 (Streamlit 기본 동작)
+        # 억지로 columns를 쓰지 않고 자연스럽게 둠
+        if st.button("저장", use_container_width=True):
+            if p1 and p2:
+                if p1 == p2:
+                    st.session_state.user_db[target_uid]['pw'] = p1
+                    st.session_state.user_db[target_uid]['first_login'] = False
+                    save_user_db(user_db_id, st.session_state.user_db)
+                    st.success("완료")
+                else: st.error("불일치")
+            else: st.error("입력 필요")
         
-        with c_logout:
-            if st.button("로그아웃", use_container_width=True):
-                st.session_state.login_status = False
-                st.session_state.admin_mode = False
-                st.rerun()
+        if st.button("로그아웃", use_container_width=True):
+            st.session_state.login_status = False
+            st.session_state.admin_mode = False
+            st.rerun()
