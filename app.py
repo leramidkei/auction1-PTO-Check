@@ -1,8 +1,9 @@
-# [Ver 4.6] 옥션원 서울지사 연차확인 시스템 (Missing Function Restored)
+# [Ver 4.7] 옥션원 서울지사 연차확인 시스템 (UI Refinement)
 # Update: 2026-02-01
 # Changes: 
-# - [Bug Fix] 누락되었던 'get_smart_renewal_bonus' 함수 정의 복구 (NameError 해결)
-# - [System] Ver 4.5의 모든 기능(갱신 파일 로딩 수정, 디자인, 특수 규칙) 정상 통합
+# - [UI] 월별 탭: '당월 잔여' 숫자 디자인을 왼쪽과 동일하게(큰 폰트, 파란색) 변경
+# - [Feature] 잔여 탭: 실시간 내역 표시 시 현재 월을 자동으로 붙임 ("19일" -> "2월 19일")
+# - [System] 기존 모든 로직(함수, 보안, 특수규칙) 정상 유지
 
 import streamlit as st
 import pandas as pd
@@ -108,7 +109,10 @@ st.markdown("""
     .metric-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .metric-label { font-size: 0.9rem; color: #888; font-weight: 600; margin-bottom: 8px; }
     .metric-value-large { font-size: 2.6rem; color: #5D9CEC; font-weight: 900; line-height: 1; }
+    
+    /* [Ver 4.7] .metric-value-sub 스타일은 그대로 두되, 함수에서 클래스를 바꿔치기 함 */
     .metric-value-sub { font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }
+    
     .metric-divider { width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }
 
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
@@ -300,9 +304,7 @@ def get_kst_now():
 def get_kst_today():
     return get_kst_now().date()
 
-# [Ver 4.6 Fix] 누락된 함수 복구 (일반 연차 갱신 계산)
 def get_smart_renewal_bonus(uid, base_filename):
-    # 전역 갱신 데이터프레임 사용 (main 로직에서 호출)
     if renewal_df.empty or not base_filename: return 0.0
     me = renewal_df[renewal_df['이름'] == uid]
     if not me.empty:
@@ -316,7 +318,6 @@ def get_smart_renewal_bonus(uid, base_filename):
                 file_end_date = datetime.date(f_year, f_month, last_day)
             else: file_end_date = datetime.date(2000, 1, 1)
 
-            # 오늘 날짜가 갱신일 지났고, 파일 날짜보다 갱신일이 미래라면 (즉, 파일엔 반영 안 된 갱신)
             if today_kst >= renew_date and renew_date > file_end_date:
                 return float(me.iloc[0]['갱신개수'])
         except: pass
@@ -345,7 +346,7 @@ def format_leave_num(val):
     return f"{val}"
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 4.6)
+# 4. 메인 로직 (Ver 4.7)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -375,7 +376,7 @@ else:
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
     target_uid = st.session_state.get('impersonate_user', login_uid) if st.session_state.admin_mode else login_uid
 
-    st.markdown('<div class="version-badge">Ver 4.6</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 4.7</div>', unsafe_allow_html=True)
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
     st.markdown(f"""<div class="profile-card"><div class="card-text"><div class="hello-text">반갑습니다,</div><div class="name-text"><span class="name-highlight">{login_uid} {admin_uinfo.get('title','')}</span>님</div><div class="msg-text">오늘도 활기찬 하루 되세요!</div></div><div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div></div>""", unsafe_allow_html=True)
 
@@ -388,10 +389,19 @@ else:
 
     tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
     
-    def render_metric_card(label1, val1, label2, val2, is_main=False):
-        st.markdown(f"""<div class="metric-box"><div class="metric-item"><span class="metric-label">{label1}</span><span class="metric-value-large">{val1}</span></div><div class="metric-divider"></div><div class="metric-item"><span class="metric-label">{label2}</span><span class="metric-value-sub">{val2}</span></div></div>""", unsafe_allow_html=True)
+    # [Ver 4.7] 카드 렌더링 함수 업그레이드 (both_large 옵션 추가)
+    def render_metric_card(label1, val1, label2, val2, is_main=False, both_large=False):
+        # 오른쪽 숫자 클래스 결정: both_large가 True면 'metric-value-large' 사용, 아니면 'metric-value-sub'
+        val2_class = "metric-value-large" if both_large else "metric-value-sub"
+        
+        st.markdown(f"""
+        <div class="metric-box">
+            <div class="metric-item"><span class="metric-label">{label1}</span><span class="metric-value-large">{val1}</span></div>
+            <div class="metric-divider"></div>
+            <div class="metric-item"><span class="metric-label">{label2}</span><span class="{val2_class}">{val2}</span></div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # [Fix] 갱신 파일 로드 (is_renewal=True 필수)
     renewal_df = fetch_excel(renewal_id, is_renewal=True) if renewal_id else pd.DataFrame()
 
     with tab1:
@@ -404,8 +414,6 @@ else:
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
-                
-                # [Fix] 일반 갱신 보너스 계산 (누락된 함수 호출)
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
                 
                 try:
@@ -456,7 +464,15 @@ else:
                     if rt_valid and rt_used > 0: 
                         future_msg = " (예정 포함)" if future_used_cnt > 0 else ""
                         st.markdown(f"<span class='realtime-badge'>📉 실시간{future_msg} -{format_leave_num(rt_used)}개 반영됨</span>", unsafe_allow_html=True)
-                        st.info(f"📝 **내역:** {rt_msg}")
+                        
+                        # [Ver 4.7] 실시간 내역 날짜에 월 정보 추가 ("19일" -> "2월 19일")
+                        try:
+                            # 숫자+일 패턴을 찾아 월+숫자+일로 변경
+                            rt_msg_formatted = re.sub(r'(\d+)일', f'{today_kst.month}월 \\1일', rt_msg)
+                            st.info(f"📝 **내역:** {rt_msg_formatted}")
+                        except:
+                            st.info(f"📝 **내역:** {rt_msg}")
+
                     elif not rt_valid and today_kst.month > file_month:
                         st.markdown(f"<span class='stale-badge'>📉 실시간 데이터 대기 중 (전월 데이터 무시됨)</span>", unsafe_allow_html=True)
 
@@ -475,7 +491,8 @@ else:
                 r = me.iloc[0]
                 used_str = format_leave_num(float(r['사용개수']))
                 remain_str = format_leave_num(float(r['잔여']))
-                render_metric_card("이번달 사용", f"{used_str}개", "당월 잔여", f"{remain_str}개")
+                # [Ver 4.7] both_large=True 적용 -> 양쪽 다 크고 파란색으로 표시
+                render_metric_card("이번달 사용", f"{used_str}개", "당월 잔여", f"{remain_str}개", both_large=True)
                 st.info(f"내역: {r['사용내역']}")
 
     with tab3:
