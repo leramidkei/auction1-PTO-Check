@@ -1,9 +1,10 @@
-# [Ver 1.9] 옥션원 서울지사 연차확인 시스템
+# [Ver 2.0] 옥션원 서울지사 연차확인 시스템 (Final Fix)
 # Update: 2026-02-01
 # Changes: 
-# - 관리자 버튼 텍스트 축소 ("관리자")
-# - 모바일 환경 강제 가로 정렬 CSS 주입 (줄바꿈 원천 봉쇄)
-# - 로그아웃(우) / 관리자(좌) 배치 유지
+# - 모바일 화면 강제 50:50 분할 CSS (줄바꿈 원천 봉쇄)
+# - 프로필 카드 Identity 고정 (관리자 이름 유지)
+# - 관리자(좌) / 로그아웃(우) 배치 확정
+# - 갱신 탭 디자인 및 로직 최종 점검
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +21,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 1.9)
+# 1. 페이지 설정 및 강력한 CSS (Ver 2.0)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -30,6 +31,7 @@ st.markdown("""
     
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
+    /* 메인 컨테이너 */
     .block-container {
         max-width: 480px; padding-top: 4rem; padding-bottom: 5rem;
         padding-left: 1.2rem; padding-right: 1.2rem;
@@ -55,34 +57,29 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* [Ver 1.9 핵심] 모바일 강제 가로 정렬 CSS */
-    /* 화면이 좁아져도(max-width: 640px) 컬럼들이 줄바꿈되지 않도록 강제함 */
-    @media (max-width: 640px) {
-        div[data-testid="column"] {
-            width: 50% !important;   /* 너비 강제 50% */
-            flex: 1 1 auto !important;
-            min-width: 0 !important; /* 최소 너비 제한 해제 */
-        }
-        div[data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important; /* 절대 줄바꿈 금지 */
-        }
+    /* [Ver 2.0 핵심] 모바일 강제 가로 정렬 CSS (절대 수정 금지 구역) */
+    /* 화면이 좁아져도 컨트롤 패널이 줄바꿈되지 않도록 강제함 */
+    [data-testid="column"] {
+        min-width: 0 !important; /* 내용물에 맞춰 줄어들게 함 */
     }
-
-    /* 관리자 토글 스타일 (좌측) */
-    .stToggle {
-        display: flex; justify-content: flex-start;
-        padding-top: 5px; /* 높이 미세 조정 */
+    
+    /* 관리자 컨트롤 패널의 구체적 타겟팅 */
+    .admin-controls-container [data-testid="column"] {
+        width: 50% !important;
+        flex: 1 1 50% !important;
     }
-    .stToggle label { font-size: 0.85rem; color: #666; font-weight: 600; }
-
-    /* 로그아웃 버튼 스타일 (우측) */
-    .stButton { width: 100%; display: flex; justify-content: flex-end; }
-    .stButton button {
+    
+    /* 수직 중앙 정렬 보정 */
+    .stToggle { margin-top: 5px; } 
+    
+    /* 로그아웃 버튼 우측 정렬 */
+    .logout-btn-wrapper { display: flex; justify-content: flex-end; width: 100%; }
+    .logout-btn-wrapper button {
         background-color: #f1f3f5; color: #868e96; font-weight: 600;
-        border: 1px solid #dee2e6; padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.85rem;
-        width: auto; white-space: nowrap;
+        border: 1px solid #dee2e6; padding: 0.4rem 0.8rem; border-radius: 8px; font-size: 0.8rem;
+        white-space: nowrap; width: auto;
     }
-    .stButton button:hover { background-color: #e9ecef; color: #495057; }
+    .logout-btn-wrapper button:hover { background-color: #e9ecef; color: #495057; }
 
     /* 메트릭 박스 */
     .metric-box {
@@ -98,6 +95,7 @@ st.markdown("""
 
     .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
 
+    /* 탭 스타일 */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
@@ -238,7 +236,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 1.9)
+# 4. 메인 로직 (Ver 2.0)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -271,49 +269,53 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 1.9</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 2.0</div>', unsafe_allow_html=True)
 
-    uinfo = st.session_state.user_db.get(target_uid, {})
-    temp_uinfo = uinfo
-
+    # [Ver 2.0 핵심] 프로필 카드는 '무조건' 로그인한 사람(관리자 본인) 정보 표시
     st.markdown(f"""
     <div class="profile-card">
         <div class="card-text">
             <div class="hello-text">반갑습니다,</div>
-            <div class="name-text"><span class="name-highlight" id="target_name_area">{target_uid} {temp_uinfo.get('title','')}</span>님</div>
+            <div class="name-text"><span class="name-highlight">{login_uid} {login_uinfo.get('title','')}</span>님</div>
             <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
         </div>
         <div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div>
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 1.9 핵심] 컨트롤 패널 (좌: 관리자 / 우: 로그아웃)
-    # CSS에서 강제로 줄바꿈을 막아놨으므로 한 줄 유지됨
+    # [Ver 2.0 핵심] 컨트롤 패널 (강제 가로 정렬 컨테이너 적용)
     if login_uinfo.get('role') == 'admin':
-        c_toggle, c_logout = st.columns([0.6, 0.4])
+        # 이 컨테이너는 CSS로 강제 50:50 설정되어 있음
+        st.markdown('<div class="admin-controls-container">', unsafe_allow_html=True)
+        c_toggle, c_logout = st.columns([0.5, 0.5])
         
         with c_toggle:
-            # 관리자 모드 토글 (글자 축소)
+            # 관리자 모드 토글 (심플하게)
             st.toggle("관리자", key="admin_mode_toggle")
             st.session_state.admin_mode = st.session_state.admin_mode_toggle
 
         with c_logout:
-            # 로그아웃 버튼 (오른쪽 정렬)
+            # 로그아웃 버튼 (우측 정렬 래퍼 사용)
+            st.markdown('<div class="logout-btn-wrapper">', unsafe_allow_html=True)
             if st.button("로그아웃", key="btn_logout"):
                 st.session_state.login_status = False; st.session_state.admin_mode = False; st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
         if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
             st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
-            st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
             
             # 관리자 알림띠
             if target_uid != login_uid:
                 st.markdown(f'<div class="viewing-alert">👀 현재 <b>{target_uid}</b>님의 데이터를 조회 중입니다.</div>', unsafe_allow_html=True)
     else:
+        # 일반 사용자
         c_space, c_logout = st.columns([0.6, 0.4])
         with c_logout:
+            st.markdown('<div class="logout-btn-wrapper">', unsafe_allow_html=True)
             if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
