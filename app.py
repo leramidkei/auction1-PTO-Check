@@ -1,10 +1,9 @@
-# [Ver 1.5] 옥션원 서울지사 연차확인 시스템
+# [Ver 1.6] 옥션원 서울지사 연차확인 시스템
 # Update: 2026-01-31
 # Changes: 
-# - 로그인 화면 디자인 원복 (중앙 정렬 + 아이콘)
-# - 관리자 모드 토글 & 로그아웃 버튼 완벽한 가로 정렬
-# - 연차 갱신 로직 정밀 수정 (calendar 모듈 사용)
-# - 갱신 탭 숫자 디자인 통일 (Blue & Large)
+# - 관리자 모드 토글 -> 버튼 변경 (UI 통일 및 우측 정렬)
+# - 연차 숫자 포맷팅 개선 (정수일 때 .0 제거)
+# - 탭 상단 높이 흔들림 완벽 고정 (투명 벽돌 기법)
 
 import streamlit as st
 import pandas as pd
@@ -18,10 +17,10 @@ import datetime
 import re
 import os
 import math
-import calendar # [Ver 1.5] 정확한 날짜 계산을 위해 추가
+import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 1.5)
+# 1. 페이지 설정 및 CSS (Ver 1.6)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -39,41 +38,36 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    /* [Ver 1.5 복구] 로그인 타이틀 스타일 */
-    .login-header {
-        text-align: center; margin-top: 40px; margin-bottom: 30px;
-    }
-    .login-title {
-        font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3;
-    }
+    /* 로그인 화면 스타일 */
+    .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
+    .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
 
     /* 프로필 카드 */
     .profile-card {
         display: grid; grid-template-columns: 1.4fr 1fr; 
-        background-color: #F0F8FF; /* 하늘색 배경 */
-        border-radius: 20px; overflow: hidden;
+        background-color: #F0F8FF; border-radius: 20px; overflow: hidden;
         margin-bottom: 15px; height: 160px; border: 1px solid #E1E8ED;
     }
     .card-text { padding: 20px; display: flex; flex-direction: column; justify-content: center; }
     .card-image img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-    
     .hello-text { font-size: 1rem; color: #555; margin-bottom: 4px; font-weight: 500; }
     .name-text { font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.3; word-break: keep-all; }
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* [Ver 1.5 핵심] 관리자 도구 가로 정렬 */
-    div[data-testid="column"] {
-        display: flex; align-items: center; /* 수직 중앙 정렬 */
-    }
-    
-    /* 로그아웃 버튼 스타일 */
+    /* [Ver 1.6] 버튼 스타일 통일 (회색 톤) */
     .stButton button {
-        background-color: #f1f3f5; color: #868e96; font-weight: 600;
-        border: none; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem;
+        background-color: #f1f3f5; color: #495057; font-weight: 600;
+        border: 1px solid #dee2e6; padding: 0.5rem 1rem; border-radius: 8px; font-size: 0.85rem;
+        width: 100%; transition: all 0.2s;
     }
-    .stButton button:hover { background-color: #e9ecef; color: #495057; }
+    .stButton button:hover { background-color: #e9ecef; border-color: #ced4da; }
+    
+    /* 활성화된 버튼 스타일 (관리자 모드 ON 일때) */
+    .admin-active button {
+        background-color: #5D9CEC !important; color: white !important; border-color: #5D9CEC !important;
+    }
 
     /* 메트릭 박스 */
     .metric-box {
@@ -87,27 +81,24 @@ st.markdown("""
     .metric-value-sub { font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }
     .metric-divider { width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }
 
-    /* [Ver 1.5] 갱신 탭 전용 대형 숫자 스타일 */
-    .renewal-value {
-        font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px;
-    }
+    /* 갱신 탭 전용 스타일 */
+    .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
 
     /* 탭 스타일 */
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 15px; }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
+    
+    /* [Ver 1.6] 탭 상단 고정용 투명 벽돌 */
+    .tab-brick { height: 20px; width: 100%; display: block; }
+
     .tab-section-header {
         font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px;
         padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
     }
+    
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
-    
-    .realtime-badge {
-        background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px;
-        font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px;
-    }
-    
-    /* 폼 입력창 스타일 */
+    .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
     </style>
     """, unsafe_allow_html=True)
@@ -231,12 +222,11 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 1.5)
+# 4. 메인 로직 (Ver 1.6)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
 if not st.session_state.get('login_status'):
-    # [Ver 1.5 복구] 로그인 화면 디자인 (아이콘 + 타이틀 + 중앙정렬)
     st.markdown("""
         <div class="login-header">
             <span class="login-icon">🏢</span>
@@ -258,8 +248,17 @@ if not st.session_state.get('login_status'):
 else:
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
+    
+    # 관리자 모드 상태 관리 (세션)
+    if 'admin_mode' not in st.session_state:
+        st.session_state.admin_mode = False
+
     target_uid = login_uid
-    st.markdown('<div class="version-badge">Ver 1.5</div>', unsafe_allow_html=True)
+    # 관리자 모드가 켜져있고 권한이 있다면 타겟 변경
+    if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
+        target_uid = st.session_state.get('impersonate_user', login_uid)
+
+    st.markdown('<div class="version-badge">Ver 1.6</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -276,56 +275,77 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # [Ver 1.5 수정] 관리자 컨트롤 (로그아웃 바로 옆에 토글 배치)
+    # [Ver 1.6] 버튼 컨트롤 영역 (우측 정렬 & 같은 버튼 사용)
+    # 비율을 [0.4, 0.3, 0.3] 등으로 주어 오른쪽으로 밀어버림
     if login_uinfo.get('role') == 'admin':
-        c1, c2 = st.columns([0.4, 0.6]) # 비율 조정으로 가깝게 배치
-        with c1:
-            if st.button("로그아웃", key="lo"): st.session_state.login_status = False; st.rerun()
-        with c2:
-            st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
+        c_space, c_admin, c_logout = st.columns([0.4, 0.3, 0.3])
         
-        if st.session_state.get("admin_mode_toggle"):
+        with c_admin:
+            # 관리자 모드 버튼 (활성화 시 색상 변경 로직은 CSS .admin-active로 처리)
+            btn_label = "🔧 관리자 ON" if st.session_state.admin_mode else "🔧 관리자 모드"
+            if st.session_state.admin_mode:
+                st.markdown('<div class="admin-active">', unsafe_allow_html=True)
+            
+            if st.button(btn_label, key="btn_admin"):
+                st.session_state.admin_mode = not st.session_state.admin_mode
+                st.rerun()
+                
+            if st.session_state.admin_mode:
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        with c_logout:
+            if st.button("로그아웃", key="btn_logout"):
+                st.session_state.login_status = False
+                st.session_state.admin_mode = False # 로그아웃 시 관리자 모드 해제
+                st.rerun()
+        
+        # 관리자 모드일 때만 사용자 선택창 표시
+        if st.session_state.admin_mode:
             all_users = list(st.session_state.user_db.keys())
-            target_uid = st.selectbox("사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
-            uinfo = st.session_state.user_db.get(target_uid, {})
-            st.markdown(f"<script>document.getElementById('target_name_area').innerText = '{target_uid} {uinfo.get('title','')}';</script>", unsafe_allow_html=True)
+            st.selectbox("조회할 사용자 선택", all_users, index=all_users.index(login_uid), key="impersonate_user")
+            
     else:
-        if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
+        # 일반 사용자: 로그아웃 버튼만 우측에
+        c_space, c_logout = st.columns([0.7, 0.3])
+        with c_logout:
+            if st.button("로그아웃"): st.session_state.login_status = False; st.rerun()
 
     renewal_df = fetch_excel(renewal_id, True) if renewal_id else pd.DataFrame()
     
-    # [Ver 1.5 핵심] 연차 중복 방지 정밀 로직 (calendar 사용)
+    # 갱신 로직 (Ver 1.5 유지)
     def get_smart_renewal_bonus(uid, base_filename):
         if renewal_df.empty or not base_filename: return 0.0
         me = renewal_df[renewal_df['이름'] == uid]
         if not me.empty:
             try:
-                # 1. 갱신일 파싱
                 renew_date = pd.to_datetime(me.iloc[0]['갱신일']).date()
                 today = datetime.date.today()
-                
-                # 2. 기준 파일 날짜 파싱 ("2026_1월" -> 2026년 1월 말일)
                 match = re.search(r'(\d{4})_(\d+)', base_filename)
                 if match:
                     f_year, f_month = int(match.group(1)), int(match.group(2))
-                    # 해당 월의 마지막 날짜 구하기 (calendar 모듈 사용)
                     last_day = calendar.monthrange(f_year, f_month)[1]
                     file_end_date = datetime.date(f_year, f_month, last_day)
-                else:
-                    file_end_date = datetime.date(2000, 1, 1)
+                else: file_end_date = datetime.date(2000, 1, 1)
 
-                # 3. 로직 판정:
-                # (오늘 >= 갱신일) AND (갱신일 > 파일 마감일)
-                # 김상호(2/1 갱신) -> 오늘(2/1) >= 갱신(2/1) [True] AND 갱신(2/1) > 파일마감(1/31) [True] => 추가!
-                # 최향자(1/1 갱신) -> 오늘(2/1) >= 갱신(1/1) [True] AND 갱신(1/1) > 파일마감(1/31) [False] => 미추가
                 if today >= renew_date and renew_date > file_end_date:
                     return float(me.iloc[0]['갱신개수'])
             except: pass
         return 0.0
 
+    # [Ver 1.6] 숫자 포맷팅 함수 (정수면 .0 제거)
+    def format_leave_num(val):
+        if pd.isna(val) or math.isnan(val): return "∞"
+        if val % 1 == 0: return f"{int(val)}개" # 정수면 int로 변환
+        return f"{val}개" # 소수점 있으면 그대로
+
     tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
     
-    def tab_header(text): st.markdown(f'<div class="tab-section-header">{text}</div>', unsafe_allow_html=True)
+    def tab_header(text):
+        # [Ver 1.6] 투명 벽돌(tab-brick)로 높이 강제 고정
+        st.markdown(f"""
+        <div class="tab-brick"></div>
+        <div class="tab-section-header">{text}</div>
+        """, unsafe_allow_html=True)
     
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -348,8 +368,6 @@ else:
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
-                
-                # [Ver 1.5] 로직 적용
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
                 
                 rt_used = 0.0
@@ -365,9 +383,11 @@ else:
                     final_str = "∞"
                 else:
                     total_calc = base_remain + bonus - rt_used
-                    final_str = f"{total_calc}개"
-                    if bonus > 0: st.success(f"🎊 갱신 연차 +{bonus}개가 자동 합산되었습니다!")
-                    if rt_used > 0: st.markdown(f"<span class='realtime-badge'>📉 실시간 사용 -{rt_used}개 반영됨</span>", unsafe_allow_html=True)
+                    # [Ver 1.6] 포맷팅 적용
+                    final_str = format_leave_num(total_calc)
+                    
+                    if bonus > 0: st.success(f"🎊 갱신 연차 +{format_leave_num(bonus)} 자동 합산됨")
+                    if rt_used > 0: st.markdown(f"<span class='realtime-badge'>📉 실시간 -{format_leave_num(rt_used)} 반영됨</span>", unsafe_allow_html=True)
 
                 render_metric_card("현재 예상 잔여", final_str, "기준 파일", latest_fname, is_main=True)
                 if rt_msg: st.info(f"📝 **추가 내역:** {rt_msg}")
@@ -382,8 +402,10 @@ else:
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 r = me.iloc[0]
-                rem = "∞" if pd.isna(r['잔여']) else f"{r['잔여']}개"
-                render_metric_card("이번달 사용", f"{r['사용개수']}개", "당월 잔여", rem)
+                # [Ver 1.6] 포맷팅 적용
+                used_str = format_leave_num(float(r['사용개수']))
+                remain_str = format_leave_num(float(r['잔여']))
+                render_metric_card("이번달 사용", used_str, "당월 잔여", remain_str)
                 st.info(f"내역: {r['사용내역']}")
 
     with tab3:
@@ -393,8 +415,9 @@ else:
             if not me.empty:
                 r = me.iloc[0]
                 st.info(f"📅 갱신일: **{r['갱신일']}**")
-                # [Ver 1.5] 디자인 수정: 검정색 -> 하늘색, 크기 확대
-                st.markdown(f"<div class='renewal-value'>+{r['갱신개수']}개</div>", unsafe_allow_html=True)
+                # [Ver 1.6] 포맷팅 적용
+                add_str = format_leave_num(float(r['갱신개수']))
+                st.markdown(f"<div class='renewal-value'>+{add_str}</div>", unsafe_allow_html=True)
                 st.markdown("<div style='text-align: center; color: #888; font-size: 0.9rem;'>추가 발생</div>", unsafe_allow_html=True)
         else: st.info("갱신 정보가 없습니다.")
 
