@@ -1,9 +1,9 @@
-# [Ver 3.4] 옥션원 서울지사 연차확인 시스템 (Back to Basic - Stable)
+# [Ver 3.5] 옥션원 서울지사 연차확인 시스템 (Security Hardened)
 # Update: 2026-02-01
 # Changes: 
-# - [CSS Removal] 충돌을 일으키는 강제 CSS 코드 전량 삭제
-# - [Layout] Streamlit 순정 기능을 사용하여 모바일 호환성 100% 확보
-# - [Structure] 설정 탭 버튼 세로 배치, 탭 헤더 단순화
+# - [Security] SHA-256 해싱 적용 (비밀번호 원문 저장 금지)
+# - [Auto-Migration] 기존 평문 비밀번호를 자동으로 암호화하여 DB 업데이트
+# - [Layout] Ver 3.4의 안정적인 순정 레이아웃 유지
 
 import streamlit as st
 import pandas as pd
@@ -18,9 +18,10 @@ import re
 import os
 import math
 import calendar
+import hashlib # [Ver 3.5] 암호화를 위한 모듈
 
 # ==============================================================================
-# 1. 페이지 설정 및 기본 CSS (Ver 3.4 - 순정 모드)
+# 1. 페이지 설정 및 CSS (Ver 3.4 디자인 유지)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -38,12 +39,10 @@ st.markdown("""
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
-    /* 로그인 화면 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
     .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
 
-    /* 프로필 카드 */
     .profile-card {
         display: grid; grid-template-columns: 1.4fr 1fr; 
         background-color: #F0F8FF; border-radius: 20px; overflow: hidden;
@@ -56,7 +55,6 @@ st.markdown("""
     .name-highlight { color: #5D9CEC; }
     .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px;}
 
-    /* 메트릭 박스 */
     .metric-box {
         display: flex; justify-content: space-between; align-items: center;
         background-color: #fff; border: 1px solid #eee; border-radius: 16px;
@@ -70,7 +68,6 @@ st.markdown("""
 
     .renewal-value { font-size: 3rem; color: #5D9CEC; font-weight: 900; text-align: center; margin-top: 10px; }
 
-    /* 탭 스타일 */
     .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 10px; }
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
@@ -80,7 +77,6 @@ st.markdown("""
         padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
     }
 
-    /* 버튼 스타일 */
     .stButton button {
         border-radius: 10px; font-weight: 700; font-size: 0.95rem; padding: 0.6rem 0; width: 100%;
     }
@@ -214,9 +210,47 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.4)
+# 3. [Ver 3.5] 보안 함수 추가 (해싱)
+# ==============================================================================
+def hash_password(password):
+    """비밀번호를 SHA-256으로 암호화"""
+    return hashlib.sha256(str(password).encode()).hexdigest()
+
+def verify_password(stored_password, input_password):
+    """
+    입력된 비밀번호가 저장된 비밀번호와 일치하는지 확인.
+    기존 평문 비밀번호와의 호환성을 위해 체크.
+    """
+    # 1. 이미 해싱된 비밀번호와 비교
+    if stored_password == hash_password(input_password):
+        return True
+    # 2. (마이그레이션 전) 평문 비밀번호와 비교 - 혹시 모를 오류 방지
+    if stored_password == input_password:
+        return True
+    return False
+
+# ==============================================================================
+# 4. 메인 로직 (Ver 3.5)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
+
+# [Ver 3.5] DB 로드 및 자동 보안 업데이트 (마이그레이션)
+if user_db_id:
+    user_db = load_json_file(user_db_id)
+    db_changed = False
+    
+    # 모든 사용자를 순회하며 평문 비밀번호를 해시로 변환
+    for u in user_db:
+        pw = user_db[u].get('pw', '')
+        # SHA-256 해시는 길이가 64자. 64자가 아니면 평문으로 간주하고 변환
+        if len(pw) != 64:
+            user_db[u]['pw'] = hash_password(pw)
+            db_changed = True
+            print(f"[보안] {u}님의 비밀번호를 암호화했습니다.")
+    
+    if db_changed:
+        save_user_db(user_db_id, user_db)
+        st.toast("🔒 보안 업데이트: 모든 비밀번호가 안전하게 암호화되었습니다.")
 
 if not st.session_state.get('login_status'):
     st.markdown("""
@@ -233,10 +267,16 @@ if not st.session_state.get('login_status'):
             submitted = st.form_submit_button("로그인", use_container_width=True)
             
             if submitted:
-                db = load_json_file(user_db_id)
-                if uid in db and db[uid]['pw'] == upw:
-                    st.session_state.login_status = True; st.session_state.user_id = uid; st.session_state.user_db = db; st.rerun()
-                else: st.error("정보를 확인해주세요.")
+                db = load_json_file(user_db_id) # 최신 DB 다시 로드
+                if uid in db:
+                    # [Ver 3.5] 암호화된 비밀번호 비교 함수 사용
+                    if verify_password(db[uid]['pw'], upw):
+                        st.session_state.login_status = True
+                        st.session_state.user_id = uid
+                        st.session_state.user_db = db
+                        st.rerun()
+                    else: st.error("비밀번호가 일치하지 않습니다.")
+                else: st.error("아이디가 존재하지 않습니다.")
 else:
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
@@ -247,7 +287,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.4</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 3.5</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -264,9 +304,9 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # 관리자 토글 (순정 기능 사용)
+    # 관리자 토글
     if login_uinfo.get('role') == 'admin':
-        # CSS 해제 후 단순 배치
+        # CSS 제거하고 순정 토글 사용 (왼쪽 정렬)
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
         
@@ -387,12 +427,12 @@ else:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # [Ver 3.4] 버튼 2개 세로 배치 (Streamlit 기본 동작)
-        # 억지로 columns를 쓰지 않고 자연스럽게 둠
+        # [Ver 3.5] 버튼 2개 세로 배치 (안정적인 순정 모드)
         if st.button("저장", use_container_width=True):
             if p1 and p2:
                 if p1 == p2:
-                    st.session_state.user_db[target_uid]['pw'] = p1
+                    # [Ver 3.5] 비밀번호 저장 시에도 암호화
+                    st.session_state.user_db[target_uid]['pw'] = hash_password(p1)
                     st.session_state.user_db[target_uid]['first_login'] = False
                     save_user_db(user_db_id, st.session_state.user_db)
                     st.success("완료")
