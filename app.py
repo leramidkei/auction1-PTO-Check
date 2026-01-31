@@ -1,9 +1,9 @@
-# [Ver 2.7] 옥션원 서울지사 연차확인 시스템 (Layout Force Override)
+# [Ver 2.8] 옥션원 서울지사 연차확인 시스템 (User Insight Applied)
 # Update: 2026-02-01
 # Changes: 
-# - [CSS] 'flex-wrap: nowrap !important'로 모바일 버튼 줄바꿈 원천 봉쇄
-# - [CSS] 관리자 토글 컨테이너 강제 중앙 정렬
-# - [CSS] 탭 내부 첫 요소(Header) 높이/여백 물리적 통일 (흔들림 방지)
+# - [Tab Fix] 'User Insight' 반영: Streamlit 위젯별 기본 여백 차이를 무시하는 'Pure HTML Header' 적용
+# - [Layout] 설정 탭 버튼 Wrapper 제거 -> 순수 Streamlit Grid로 삐져나감 해결
+# - [CSS] 관리자 토글 내부 요소 강제 중앙 정렬
 
 import streamlit as st
 import pandas as pd
@@ -20,7 +20,7 @@ import math
 import calendar
 
 # ==============================================================================
-# 1. 페이지 설정 및 CSS (Ver 2.7)
+# 1. 페이지 설정 및 CSS (Ver 2.8)
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
@@ -30,59 +30,37 @@ st.markdown("""
     
     [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
 
+    /* 메인 컨테이너 */
     .block-container {
-        max-width: 480px; padding-top: 4rem; padding-bottom: 5rem;
-        padding-left: 1.2rem; padding-right: 1.2rem;
+        max-width: 480px; 
+        padding-top: 4rem; padding-bottom: 5rem;
+        padding-left: 1.0rem; padding-right: 1.0rem; /* 좌우 여백 살짝 줄임 (버튼 공간 확보) */
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }
 
     /* ----------------------------------------------------------------------
-       [Ver 2.7 핵심] 레이아웃 강제 고정 섹션 (절대 수정 주의)
+       [Ver 2.8 핵심] 탭 흔들림 방지용 '강철 헤더' 스타일
+       Streamlit 위젯이 아닌 순수 HTML로 높이를 강제 고정함
        ---------------------------------------------------------------------- */
-    
-    /* 1. 모바일에서 가로 배치된 컬럼들이 절대 세로로 쌓이지 않게 강제함 (저장/로그아웃 버튼용) */
-    div[data-testid="stHorizontalBlock"] {
-        flex-wrap: nowrap !important;
-        gap: 10px !important; /* 버튼 사이 간격 */
-    }
-    
-    /* 컬럼의 최소 너비를 보장하여 찌그러짐 방지 */
-    div[data-testid="column"] {
-        min-width: 0px !important;
-        flex: 1 1 0px !important;
-        width: auto !important;
-    }
-
-    /* 2. 관리자 토글(Checkbox/Toggle) 강제 중앙 정렬 */
-    /* Streamlit Toggle은 복잡한 div 구조라 상위 요소부터 잡아야 함 */
-    .stToggle {
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        width: 100% !important;
-    }
-    /* 토글 내부 라벨(글자) 중앙 정렬 */
-    .stToggle label {
-        text-align: center !important;
-        width: 100% !important;
-    }
-
-    /* 3. 탭 상단 흔들림 방지 (모든 탭의 첫 요소 스타일 고정) */
-    .fixed-tab-header {
-        display: flex;
-        align-items: center;
-        height: 40px; /* 높이 고정 */
-        margin-top: 0px !important;
-        margin-bottom: 20px !important;
-        padding-top: 10px;
-        border-left: 4px solid #5D9CEC;
-        padding-left: 10px;
+    .steel-header {
+        font-family: 'Pretendard', sans-serif;
+        font-size: 1.1rem;
         font-weight: 800;
         color: #495057;
-        font-size: 1.1rem;
+        
+        /* 높이와 여백을 픽셀 단위로 강제 고정 */
+        height: 50px; 
+        display: flex;
+        align-items: center;
+        margin-top: 0px !important;
+        margin-bottom: 10px !important;
+        padding-top: 10px !important;
+        
+        border-left: 5px solid #5D9CEC;
+        padding-left: 10px;
+        background-color: #fff; /* 배경색 지정으로 겹침 방지 */
     }
-    /* ---------------------------------------------------------------------- */
 
     /* 로그인 화면 */
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
@@ -121,16 +99,35 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
     
-    /* 버튼 스타일 */
+    /* [Ver 2.8] 관리자 토글 강제 중앙 정렬 CSS */
+    .stToggle {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        margin-top: 0px !important;
+    }
+    /* 토글 내부 라벨 컨테이너 정렬 */
+    div[data-testid="stWidgetLabel"] {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    .stToggle label p { font-weight: 700; color: #555; font-size: 0.9rem; }
+
+    /* 버튼 스타일 (Wrapper 제거 후 직접 타겟팅) */
     .stButton button {
-        border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100% !important;
+        border-radius: 10px; font-weight: 700; font-size: 0.95rem; padding: 0.75rem 0;
+        width: 100% !important; /* 컨테이너 꽉 채우기 */
     }
-    /* 저장 버튼 (Tab 4 첫번째 버튼) */
-    div[data-testid="column"]:nth-of-type(1) .stButton button {
-        background-color: #5D9CEC !important; color: white !important; border: none;
+    
+    /* 설정 탭(Tab 4)의 버튼 색상 지정 */
+    /* 첫 번째 버튼 (저장) -> 파란색 */
+    div[data-testid="stVerticalBlock"] > div:nth-child(4) div[data-testid="column"]:nth-of-type(1) button {
+        background-color: #5D9CEC !important; color: white !important; border: none !important;
     }
-    /* 로그아웃 버튼 (Tab 4 두번째 버튼) */
-    div[data-testid="column"]:nth-of-type(2) .stButton button {
+    /* 두 번째 버튼 (로그아웃) -> 회색 */
+    div[data-testid="stVerticalBlock"] > div:nth-child(4) div[data-testid="column"]:nth-of-type(2) button {
         background-color: #f1f3f5 !important; color: #868e96 !important; border: 1px solid #dee2e6 !important;
     }
 
@@ -264,7 +261,7 @@ def fetch_excel(file_id, is_renewal=False):
     except: return pd.DataFrame()
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 2.7)
+# 4. 메인 로직 (Ver 2.8)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files = get_all_files()
 
@@ -297,7 +294,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 2.7</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 2.8</div>', unsafe_allow_html=True)
 
     # 프로필 카드
     uinfo = st.session_state.user_db.get(target_uid, {})
@@ -314,7 +311,7 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # 관리자 토글 (CSS로 강제 중앙 정렬됨)
+    # 관리자 토글 (중앙 정렬 CSS 적용됨)
     if login_uinfo.get('role') == 'admin':
         is_admin = st.toggle("🔧 관리자 모드", key="admin_mode_toggle")
         st.session_state.admin_mode = is_admin
@@ -354,9 +351,9 @@ else:
 
     tab1, tab2, tab3, tab4 = st.tabs(["📌 잔여", "📅 월별", "🔄 갱신", "⚙️ 설정"])
     
-    # [Ver 2.7] 탭 헤더 (CSS 클래스로 고정)
-    def tab_header(text):
-        st.markdown(f"""<div class="fixed-tab-header">{text}</div>""", unsafe_allow_html=True)
+    # [Ver 2.8 핵심] 강철 헤더 (순수 HTML로 높이 고정)
+    def universal_header(text):
+        st.markdown(f'<div class="steel-header">{text}</div>', unsafe_allow_html=True)
     
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -370,7 +367,7 @@ else:
         """, unsafe_allow_html=True)
 
     with tab1:
-        tab_header("현재 잔여 연차 확인")
+        universal_header("현재 잔여 연차 확인") # 강철 헤더 적용
         if monthly_files:
             latest_fname = monthly_files[0]['name']
             df = fetch_excel(monthly_files[0]['id'])
@@ -401,7 +398,7 @@ else:
             else: st.warning("데이터가 없습니다.")
 
     with tab2:
-        tab_header("월별 사용 내역 조회")
+        universal_header("월별 사용 내역 조회") # 강철 헤더 적용
         opts = {f['name']: f['id'] for f in monthly_files}
         sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
         if sel:
@@ -415,7 +412,7 @@ else:
                 st.info(f"내역: {r['사용내역']}")
 
     with tab3:
-        tab_header("연차 갱신 및 발생 내역")
+        universal_header("연차 갱신 및 발생 내역") # 강철 헤더 적용
         if not renewal_df.empty:
             me = renewal_df[renewal_df['이름'] == target_uid]
             if not me.empty:
@@ -427,7 +424,7 @@ else:
         else: st.info("갱신 정보가 없습니다.")
 
     with tab4:
-        tab_header("설정 및 로그아웃")
+        universal_header("설정 및 로그아웃") # 강철 헤더 적용
         if login_uid != target_uid:
              st.warning(f"⚠️ 관리자 권한으로 **{target_uid}**님의 비밀번호를 변경합니다.")
         
@@ -436,7 +433,7 @@ else:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # [Ver 2.7] CSS로 'flex-wrap: nowrap !important'가 적용되어 절대 줄바꿈 안됨
+        # [Ver 2.8] 버튼 배치 (Wrapper 제거 -> 순수 Grid)
         c_save, c_logout = st.columns(2)
         with c_save:
             if st.button("저장", use_container_width=True):
