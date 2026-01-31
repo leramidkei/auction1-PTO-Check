@@ -1,9 +1,8 @@
-# [Ver 4.5] 옥션원 서울지사 연차확인 시스템 (Critical Bug Fix)
+# [Ver 4.6] 옥션원 서울지사 연차확인 시스템 (Missing Function Restored)
 # Update: 2026-02-01
 # Changes: 
-# - [Critical Fix] 갱신 파일 로딩 시 인자 전달 오류 수정 (filename 위치에 True가 들어가는 버그 해결)
-#   -> fetch_excel(renewal_id, is_renewal=True)로 명시적 호출
-# - [System] 디자인(박스형), 날짜 포맷(월 포함), 김동준 로직 등 모든 기능 Ver 4.4와 동일하게 유지
+# - [Bug Fix] 누락되었던 'get_smart_renewal_bonus' 함수 정의 복구 (NameError 해결)
+# - [System] Ver 4.5의 모든 기능(갱신 파일 로딩 수정, 디자인, 특수 규칙) 정상 통합
 
 import streamlit as st
 import pandas as pd
@@ -301,6 +300,28 @@ def get_kst_now():
 def get_kst_today():
     return get_kst_now().date()
 
+# [Ver 4.6 Fix] 누락된 함수 복구 (일반 연차 갱신 계산)
+def get_smart_renewal_bonus(uid, base_filename):
+    # 전역 갱신 데이터프레임 사용 (main 로직에서 호출)
+    if renewal_df.empty or not base_filename: return 0.0
+    me = renewal_df[renewal_df['이름'] == uid]
+    if not me.empty:
+        try:
+            renew_date = pd.to_datetime(me.iloc[0]['갱신일']).date()
+            today_kst = get_kst_today()
+            match = re.search(r'(\d{4})_(\d+)', base_filename)
+            if match:
+                f_year, f_month = int(match.group(1)), int(match.group(2))
+                last_day = calendar.monthrange(f_year, f_month)[1]
+                file_end_date = datetime.date(f_year, f_month, last_day)
+            else: file_end_date = datetime.date(2000, 1, 1)
+
+            # 오늘 날짜가 갱신일 지났고, 파일 날짜보다 갱신일이 미래라면 (즉, 파일엔 반영 안 된 갱신)
+            if today_kst >= renew_date and renew_date > file_end_date:
+                return float(me.iloc[0]['갱신개수'])
+        except: pass
+    return 0.0
+
 def get_kim_special_calc(uid, mode='total', base_file_date=None):
     if uid != "김동준": return 0.0
     bonus = 0.0
@@ -318,8 +339,13 @@ def get_kim_special_calc(uid, mode='total', base_file_date=None):
     if today >= datetime.date(2026, 7, 1): bonus += 15.0
     return bonus
 
+def format_leave_num(val):
+    if pd.isna(val) or math.isnan(val): return "∞"
+    if val % 1 == 0: return f"{int(val)}"
+    return f"{val}"
+
 # ==============================================================================
-# 4. 메인 로직 (Ver 4.5)
+# 4. 메인 로직 (Ver 4.6)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -349,7 +375,7 @@ else:
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
     target_uid = st.session_state.get('impersonate_user', login_uid) if st.session_state.admin_mode else login_uid
 
-    st.markdown('<div class="version-badge">Ver 4.5</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 4.6</div>', unsafe_allow_html=True)
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
     st.markdown(f"""<div class="profile-card"><div class="card-text"><div class="hello-text">반갑습니다,</div><div class="name-text"><span class="name-highlight">{login_uid} {admin_uinfo.get('title','')}</span>님</div><div class="msg-text">오늘도 활기찬 하루 되세요!</div></div><div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div></div>""", unsafe_allow_html=True)
 
@@ -365,7 +391,7 @@ else:
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         st.markdown(f"""<div class="metric-box"><div class="metric-item"><span class="metric-label">{label1}</span><span class="metric-value-large">{val1}</span></div><div class="metric-divider"></div><div class="metric-item"><span class="metric-label">{label2}</span><span class="metric-value-sub">{val2}</span></div></div>""", unsafe_allow_html=True)
 
-    # [Ver 4.5 Fix] 갱신 파일 로딩 시 is_renewal=True 명시
+    # [Fix] 갱신 파일 로드 (is_renewal=True 필수)
     renewal_df = fetch_excel(renewal_id, is_renewal=True) if renewal_id else pd.DataFrame()
 
     with tab1:
@@ -378,6 +404,8 @@ else:
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
+                
+                # [Fix] 일반 갱신 보너스 계산 (누락된 함수 호출)
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
                 
                 try:
@@ -420,14 +448,14 @@ else:
                 if pd.isna(base_remain): final_str = "∞"
                 else:
                     total_calc = base_remain + bonus + special_bonus - rt_used
-                    final_str = format_leave_num(total_calc)
+                    final_str = format_leave_num(total_calc) + "개"
                     
-                    if bonus > 0: st.success(f"🎊 갱신 연차 +{format_leave_num(bonus)} 자동 합산됨")
-                    if special_bonus > 0: st.success(f"👶 근속 1년 미만 발생분 +{format_leave_num(special_bonus)} 합산됨")
+                    if bonus > 0: st.success(f"🎊 갱신 연차 +{format_leave_num(bonus)}개 자동 합산됨")
+                    if special_bonus > 0: st.success(f"👶 근속 1년 미만 발생분 +{format_leave_num(special_bonus)}개 합산됨")
                     
                     if rt_valid and rt_used > 0: 
                         future_msg = " (예정 포함)" if future_used_cnt > 0 else ""
-                        st.markdown(f"<span class='realtime-badge'>📉 실시간{future_msg} -{format_leave_num(rt_used)} 반영됨</span>", unsafe_allow_html=True)
+                        st.markdown(f"<span class='realtime-badge'>📉 실시간{future_msg} -{format_leave_num(rt_used)}개 반영됨</span>", unsafe_allow_html=True)
                         st.info(f"📝 **내역:** {rt_msg}")
                     elif not rt_valid and today_kst.month > file_month:
                         st.markdown(f"<span class='stale-badge'>📉 실시간 데이터 대기 중 (전월 데이터 무시됨)</span>", unsafe_allow_html=True)
@@ -441,14 +469,13 @@ else:
         opts = {f['name']: f['id'] for f in monthly_files}
         sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
         if sel:
-            # [Ver 4.5] 파일명 전달
             df = fetch_excel(opts[sel], filename=sel)
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 r = me.iloc[0]
                 used_str = format_leave_num(float(r['사용개수']))
                 remain_str = format_leave_num(float(r['잔여']))
-                render_metric_card("이번달 사용", used_str, "당월 잔여", remain_str)
+                render_metric_card("이번달 사용", f"{used_str}개", "당월 잔여", f"{remain_str}개")
                 st.info(f"내역: {r['사용내역']}")
 
     with tab3:
@@ -470,7 +497,7 @@ else:
                     <div class="special-rule-box">
                     [근속 1년 미만 근로자 연차 갱신규칙]<br>
                     2026년 6월 1일까지 매월 1일 연차 1개 발생<br>
-                    (현재까지 발생분: +{format_leave_num(special_accrued_total)})
+                    (현재까지 발생분: +{format_leave_num(special_accrued_total)}개)
                     </div>
                 """, unsafe_allow_html=True)
             
@@ -488,7 +515,7 @@ else:
                 val = format_leave_num(float(r['갱신개수']))
                 st.markdown(f"""
                 <div class="renewal-box">
-                    <div class="renewal-number">+{val}</div>
+                    <div class="renewal-number">+{val}개</div>
                     <div class="renewal-label">추가 발생</div>
                 </div>
                 """, unsafe_allow_html=True)
