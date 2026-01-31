@@ -1,11 +1,9 @@
-# [Ver 3.9] 옥션원 서울지사 연차확인 시스템 (Keyword Expansion & Special Rules)
+# [Ver 4.0] 옥션원 서울지사 연차확인 시스템 (Layout Spacer & Logic Fix)
 # Update: 2026-02-01
 # Changes: 
-# - [Parser] 엑셀 파싱 시 '연차' 외에 '휴가' 키워드도 1.0일 사용으로 인식하도록 수정
-# - [Special Logic] 사용자 '김동준'에 대한 1년 미만 근속자 특수 연차 규칙 적용
-#   1) 2026-02-01 ~ 2026-06-01: 매월 1일 +1개 자동 발생
-#   2) 2026-07-01: 1년 만근 시 +15개 발생 및 안내 문구 출력
-# - [UI] 김동준 님 갱신 탭에 파란색 안내 문구 추가
+# - [Layout] 탭 최하단에 100px 투명 여백 추가 -> 'Manage app' 버튼에 가려지는 문제 해결
+# - [Logic] 김동준 님 '1년 미만 연차' 계산 로직 수정 (2025.08.01부터 계산 -> 현재 기준 7개 정상 출력)
+# - [System] 기존 3.8의 모든 기능 유지
 
 import streamlit as st
 import pandas as pd
@@ -78,6 +76,9 @@ st.markdown("""
         padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
     }
     .universal-spacer { width: 100%; height: 20px !important; margin-bottom: 10px !important; display: block; visibility: hidden; }
+    
+    /* [Ver 4.0] 하단 가림 방지용 대형 스페이서 */
+    .bottom-spacer { width: 100%; height: 100px !important; display: block; visibility: hidden; }
 
     .metric-box {
         display: flex; justify-content: space-between; align-items: center;
@@ -117,7 +118,6 @@ st.markdown("""
     .stTextInput input { text-align: center; }
     .viewing-alert { background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba; }
     
-    /* 김동준 특수 규칙 안내 박스 */
     .special-rule-box {
         color: #5D9CEC; 
         font-weight: 800; 
@@ -244,7 +244,6 @@ def fetch_excel(file_id, is_renewal=False):
                     usage, count = [], 0.0
                     for d in date_cols:
                         val = str(row[d])
-                        # [Ver 3.9 Fix] '휴가' 키워드 추가 (연차와 동일하게 1.0 차감)
                         if "연차" in val or "휴가" in val: 
                             usage.append(f"{d}일({val.strip()})")
                             count += 1.0
@@ -276,31 +275,33 @@ def get_kst_now():
 def get_kst_today():
     return get_kst_now().date()
 
-# [Ver 3.9] 김동준 님 특수 연차 발생 계산 함수
+# [Ver 4.0] 김동준 님 특수 연차 발생 계산 (2025.08부터 계산)
 def get_kim_special_accrual(uid):
     if uid != "김동준": return 0.0
     
-    # 1. 월별 발생 (2026.02 ~ 2026.06 매월 1일)
     bonus = 0.0
+    # 1년 미만 근속자 월별 발생일 리스트 (2025.08 ~ 2026.06)
     check_dates = [
-        datetime.date(2026, 2, 1),
-        datetime.date(2026, 3, 1),
-        datetime.date(2026, 4, 1),
-        datetime.date(2026, 5, 1),
+        datetime.date(2025, 8, 1), datetime.date(2025, 9, 1),
+        datetime.date(2025, 10, 1), datetime.date(2025, 11, 1),
+        datetime.date(2025, 12, 1), datetime.date(2026, 1, 1),
+        datetime.date(2026, 2, 1), datetime.date(2026, 3, 1),
+        datetime.date(2026, 4, 1), datetime.date(2026, 5, 1),
         datetime.date(2026, 6, 1)
     ]
+    
     today = get_kst_today()
     for d in check_dates:
         if today >= d: bonus += 1.0
         
-    # 2. 1년 만근 발생 (2026.07.01)
+    # 2. 1년 만근 (2026.07.01)
     if today >= datetime.date(2026, 7, 1):
         bonus += 15.0
         
     return bonus
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 3.9)
+# 4. 메인 로직 (Ver 4.0)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -346,7 +347,7 @@ else:
     if st.session_state.admin_mode and login_uinfo.get('role') == 'admin':
         target_uid = st.session_state.get('impersonate_user', login_uid)
 
-    st.markdown('<div class="version-badge">Ver 3.9</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 4.0</div>', unsafe_allow_html=True)
 
     uinfo = st.session_state.user_db.get(target_uid, {})
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
@@ -406,6 +407,9 @@ else:
     
     def insert_universal_bar():
         st.markdown('<div class="universal-spacer"></div>', unsafe_allow_html=True)
+        
+    def insert_bottom_spacer():
+        st.markdown('<div class="bottom-spacer"></div>', unsafe_allow_html=True)
 
     def render_metric_card(label1, val1, label2, val2, is_main=False):
         val1_class = "metric-value-large" if is_main else "metric-value-large"
@@ -430,8 +434,6 @@ else:
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
                 bonus = get_smart_renewal_bonus(target_uid, latest_fname)
-                
-                # [Ver 3.9] 김동준 특수 발생분 계산
                 special_bonus = get_kim_special_accrual(target_uid)
                 
                 rt_used = 0.0
@@ -453,7 +455,6 @@ else:
                                 rt_used = rt_data.get('used', 0.0)
                                 rt_msg = rt_data.get('details', '')
                                 rt_valid = True
-                                
                                 dates = re.findall(r'(\d+)일', rt_msg)
                                 if any(int(d) >= today_kst.day for d in dates):
                                     future_used_cnt = 1
@@ -498,15 +499,10 @@ else:
         insert_universal_bar()
         tab_header("연차 갱신 및 발생 내역")
         
-        # [Ver 3.9] 김동준 특수 규칙 UI 표시
         if target_uid == "김동준":
             special_accrued = get_kim_special_accrual("김동준")
-            
-            # 1년 만근 갱신일 (2026-07-01)
             st.info("📅 **2026-07-01** 1년 근속 갱신 예정 (입사일: 2025-07-01)")
             st.markdown("<div class='renewal-value'>+15개</div>", unsafe_allow_html=True)
-            
-            # 특수 규칙 안내문 (파란색 박스)
             st.markdown(f"""
                 <div class="special-rule-box">
                 [근속 1년 미만 근로자 연차 갱신규칙]<br>
@@ -529,6 +525,8 @@ else:
                 st.markdown(f"<div class='renewal-value'>+{add_str}</div>", unsafe_allow_html=True)
                 st.markdown("<div style='text-align: center; color: #888; font-size: 0.9rem;'>추가 발생</div>", unsafe_allow_html=True)
         else: st.info("갱신 정보가 없습니다.")
+        
+        insert_bottom_spacer() # [Ver 4.0 Fix] 하단 여백 추가
 
     with tab4:
         insert_universal_bar()
