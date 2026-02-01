@@ -1,8 +1,9 @@
-# [Ver 5.4] 옥션원 서울지사 연차확인 시스템 (Version UI Fixed)
+# [Ver 5.5] 옥션원 서울지사 연차확인 시스템 (UI & Text Update)
 # Update: 2026-02-01
 # Changes:
-# - [UI] 로그인 화면 및 메인 화면 우측 상단에 버전(Ver 5.4) 고정 표시
-# - [Performance] 캐싱(@st.cache_data) 적용으로 속도 개선 유지
+# - [UI] 버전 표시 위치를 우측 최상단으로 조정 (프로필 카드와 분리)
+# - [Text] 실시간 데이터 대기 문구 변경: (전월 데이터 무시됨) -> (연/반차 사용 시 반영됨)
+# - [System] 버전 번호 5.5로 상향
 
 import streamlit as st
 import pandas as pd
@@ -22,9 +23,9 @@ import base64
 from dateutil import parser
 
 # ==============================================================================
-# 0. 버전 관리 (여기만 수정하면 됩니다)
+# 0. 버전 관리
 # ==============================================================================
-APP_VERSION = "Ver 5.4"
+APP_VERSION = "Ver 5.5"
 
 # ==============================================================================
 # 1. 페이지 설정 및 CSS
@@ -42,18 +43,21 @@ st.markdown(f"""
         padding-top: 3rem; padding-bottom: 5rem;
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
-        position: relative; /* 버전 표시 절대 위치를 위해 설정 */
+        position: relative;
     }}
 
-    /* 버전 배지 스타일 (우측 상단 고정) */
+    /* [Ver 5.5] 버전 배지 위치 수정 (카드 밖으로 꺼내기) */
     .version-badge {{
         position: absolute;
-        top: 15px;
+        top: 10px; /* 상단 여백 줄임 */
         right: 20px;
         color: #adb5bd;
-        font-size: 0.75rem;
-        font-weight: 700;
-        z-index: 100;
+        font-size: 0.8rem;
+        font-weight: 800;
+        z-index: 999; /* 제일 위에 표시 */
+        background-color: #ffffff; /* 배경색 줘서 겹침 방지 */
+        padding: 2px 8px;
+        border-radius: 12px;
     }}
 
     .renewal-box {{
@@ -308,18 +312,17 @@ def get_image_base64(image_path):
         return None
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 5.4 - 버전 표시 적용)
+# 4. 메인 로직 (Ver 5.5 - 버전 UI 개선 및 텍스트 수정)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
 if user_db_id:
     user_db = load_json_file(user_db_id)
 
-# [UI] 로그인 화면에도 버전 표시
+# [UI] 로그인 여부와 관계없이 우측 상단에 버전 고정 표시
+st.markdown(f'<div class="version-badge">{APP_VERSION}</div>', unsafe_allow_html=True)
+
 if not st.session_state.get('login_status'):
-    # 우측 상단 버전 배지 (로그인 전)
-    st.markdown(f'<div class="version-badge">{APP_VERSION}</div>', unsafe_allow_html=True)
-    
     calendar_img_b64 = get_image_base64("empty_calendar.png")
     calendar_img_src = f"data:image/png;base64,{calendar_img_b64}" if calendar_img_b64 else ""
 
@@ -338,9 +341,6 @@ if not st.session_state.get('login_status'):
                 st.session_state.login_status = True; st.session_state.user_id = uid; st.session_state.user_db = user_db; st.rerun()
             else: st.error("정보를 확인해주세요.")
 else:
-    # 우측 상단 버전 배지 (로그인 후)
-    st.markdown(f'<div class="version-badge">{APP_VERSION}</div>', unsafe_allow_html=True)
-    
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
@@ -383,7 +383,6 @@ else:
         if monthly_files:
             latest_fname = monthly_files[0]['name']
             df = fetch_excel(monthly_files[0]['id'])
-            # [캐시 적용] 실시간 데이터 파일 로드
             st.session_state.realtime_data = load_json_file(realtime_id) if realtime_id else {}
             
             me = df[df['이름'] == target_uid]
@@ -451,7 +450,8 @@ else:
                             st.info(f"📝 **내역:** {rt_msg}")
 
                     elif not rt_valid and today_kst.month > file_month:
-                        st.markdown(f"<span class='stale-badge'>📉 실시간 데이터 대기 중 (전월 데이터 무시됨)</span>", unsafe_allow_html=True)
+                        # [Ver 5.5] 문구 수정: (전월 데이터 무시됨) -> (연/반차 사용 시 반영됨)
+                        st.markdown(f"<span class='stale-badge'>📉 실시간 데이터 대기 중 (연/반차 사용 시 반영됨)</span>", unsafe_allow_html=True)
 
                 render_metric_card("현재 예상 잔여", final_str, "기준 파일", latest_fname, is_main=True)
             else: st.warning("데이터가 없습니다.")
@@ -462,7 +462,6 @@ else:
         opts = {f['name']: f['id'] for f in monthly_files}
         sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
         if sel:
-            # fetch_excel은 캐싱되어 있어서 빠름
             df = fetch_excel(opts[sel], filename=sel)
             me = df[df['이름'] == target_uid]
             if not me.empty:
