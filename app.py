@@ -1,9 +1,8 @@
-# [Ver 5.5] 옥션원 서울지사 연차확인 시스템 (UI & Text Update)
+# [Ver 5.6] 옥션원 서울지사 연차확인 시스템 (UI Overlap Fix)
 # Update: 2026-02-01
 # Changes:
-# - [UI] 버전 표시 위치를 우측 최상단으로 조정 (프로필 카드와 분리)
-# - [Text] 실시간 데이터 대기 문구 변경: (전월 데이터 무시됨) -> (연/반차 사용 시 반영됨)
-# - [System] 버전 번호 5.5로 상향
+# - [UI] 버전 표시 방식을 '절대 위치'에서 '흐름 배치'로 변경하여 프로필 카드와 겹침 현상 원천 차단
+# - [System] 버전 번호 5.6으로 상향
 
 import streamlit as st
 import pandas as pd
@@ -25,7 +24,7 @@ from dateutil import parser
 # ==============================================================================
 # 0. 버전 관리
 # ==============================================================================
-APP_VERSION = "Ver 5.5"
+APP_VERSION = "Ver 5.6"
 
 # ==============================================================================
 # 1. 페이지 설정 및 CSS
@@ -40,24 +39,23 @@ st.markdown(f"""
 
     .block-container {{
         max-width: 480px; 
-        padding-top: 3rem; padding-bottom: 5rem;
+        padding-top: 2rem; /* 상단 여백 약간 조정 */
+        padding-bottom: 5rem;
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
-        position: relative;
     }}
 
-    /* [Ver 5.5] 버전 배지 위치 수정 (카드 밖으로 꺼내기) */
+    /* [Ver 5.6 수정] 겹침 방지를 위해 absolute 제거 -> 일반 블록 요소로 변경 */
     .version-badge {{
-        position: absolute;
-        top: 10px; /* 상단 여백 줄임 */
-        right: 20px;
+        width: 100%;
+        text-align: right; /* 우측 정렬 */
         color: #adb5bd;
         font-size: 0.8rem;
-        font-weight: 800;
-        z-index: 999; /* 제일 위에 표시 */
-        background-color: #ffffff; /* 배경색 줘서 겹침 방지 */
-        padding: 2px 8px;
-        border-radius: 12px;
+        font-weight: 700;
+        margin-bottom: 5px; /* 아래 요소(카드)와 간격 확보 */
+        padding-right: 15px; /* 우측 여백 */
+        padding-top: 10px;
+        display: block;
     }}
 
     .renewal-box {{
@@ -82,7 +80,7 @@ st.markdown(f"""
     .metric-value-sub {{ font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }}
     .metric-divider {{ width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }}
 
-    .login-header {{ text-align: center; margin-top: 40px; margin-bottom: 30px; }}
+    .login-header {{ text-align: center; margin-top: 20px; margin-bottom: 30px; }}
     .login-title {{ font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }}
     .login-icon-img {{ width: 50px; height: 50px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto; }}
     
@@ -312,14 +310,14 @@ def get_image_base64(image_path):
         return None
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 5.5 - 버전 UI 개선 및 텍스트 수정)
+# 4. 메인 로직 (Ver 5.6 - 버전 표시 흐름 배치로 수정)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
 if user_db_id:
     user_db = load_json_file(user_db_id)
 
-# [UI] 로그인 여부와 관계없이 우측 상단에 버전 고정 표시
+# [UI] 버전 표시를 먼저 렌더링 (블록 요소로 배치하여 겹침 방지)
 st.markdown(f'<div class="version-badge">{APP_VERSION}</div>', unsafe_allow_html=True)
 
 if not st.session_state.get('login_status'):
@@ -450,7 +448,7 @@ else:
                             st.info(f"📝 **내역:** {rt_msg}")
 
                     elif not rt_valid and today_kst.month > file_month:
-                        # [Ver 5.5] 문구 수정: (전월 데이터 무시됨) -> (연/반차 사용 시 반영됨)
+                        # [Ver 5.6] 문구 반영 완료
                         st.markdown(f"<span class='stale-badge'>📉 실시간 데이터 대기 중 (연/반차 사용 시 반영됨)</span>", unsafe_allow_html=True)
 
                 render_metric_card("현재 예상 잔여", final_str, "기준 파일", latest_fname, is_main=True)
