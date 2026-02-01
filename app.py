@@ -1,9 +1,9 @@
-# [Ver 4.8] 옥션원 서울지사 연차확인 시스템 (Buttons Stacked)
+# [Ver 4.9] 옥션원 서울지사 연차확인 시스템 (Private Repo Image Fix)
 # Update: 2026-02-01
 # Changes: 
-# - [Layout Fix] 설정 탭(Tab 4) 버튼 배치를 '가로(Columns)'에서 '세로(Stacked)'로 롤백 (모바일 안정성 확보)
-# - [UI] '저장' 버튼에 type='primary' 속성을 부여하여 시각적 강조
-# - [System] Ver 4.7의 모든 기능(갱신 박스, 날짜 포맷, 특수 규칙) 유지
+# - [Critical Fix] 비공개 저장소에서 이미지 URL 접근 차단 문제 해결
+#   -> 로컬 파일('character.png')을 직접 읽어 Base64 코드로 변환하여 HTML에 임베딩
+# - [System] 기존 모든 기능 및 디자인 유지
 
 import streamlit as st
 import pandas as pd
@@ -19,6 +19,7 @@ import os
 import math
 import calendar
 import hashlib
+import base64 # [Ver 4.9] 이미지 변환용 모듈 추가
 from dateutil import parser
 
 # ==============================================================================
@@ -61,6 +62,24 @@ st.markdown("""
         color: #555;
         font-weight: 700;
         margin-top: 5px;
+    }
+
+    @media only screen and (max-width: 640px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            gap: 0.5rem !important;
+        }
+        div[data-testid="column"] {
+            width: 48% !important;
+            flex: 0 0 48% !important;
+            min-width: 0 !important;
+        }
+        .stButton button {
+            width: 100% !important;
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
     }
 
     .stToggle {
@@ -112,7 +131,6 @@ st.markdown("""
 
     .stButton button { border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100%; }
     
-    /* 저장 버튼 색상 강제 (Primary) */
     button[kind="primary"] {
         background-color: #5D9CEC !important;
         border: none !important;
@@ -332,8 +350,16 @@ def format_leave_num(val):
     if val % 1 == 0: return f"{int(val)}"
     return f"{val}"
 
+# [Ver 4.9] 로컬 이미지 파일을 읽어서 Base64 문자열로 반환하는 함수
+def get_image_base64(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except:
+        return None
+
 # ==============================================================================
-# 4. 메인 로직 (Ver 4.8)
+# 4. 메인 로직 (Ver 4.9)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -363,9 +389,27 @@ else:
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
     target_uid = st.session_state.get('impersonate_user', login_uid) if st.session_state.admin_mode else login_uid
 
-    st.markdown('<div class="version-badge">Ver 4.8</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 4.9</div>', unsafe_allow_html=True)
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
-    st.markdown(f"""<div class="profile-card"><div class="card-text"><div class="hello-text">반갑습니다,</div><div class="name-text"><span class="name-highlight">{login_uid} {admin_uinfo.get('title','')}</span>님</div><div class="msg-text">오늘도 활기찬 하루 되세요!</div></div><div class="card-image"><img src="https://raw.githubusercontent.com/leramidkei/auction1-PTO-Check/main/character.png"></div></div>""", unsafe_allow_html=True)
+    
+    # [Ver 4.9] 로컬 이미지 파일을 읽어와서 표시
+    img_b64 = get_image_base64("character.png")
+    if img_b64:
+        img_src = f"data:image/png;base64,{img_b64}"
+    else:
+        # 파일이 없을 경우 깨진 아이콘 대신 빈 투명 이미지나 대체 텍스트 표시 가능 (여기선 그냥 둠)
+        img_src = "" 
+
+    st.markdown(f"""
+    <div class="profile-card">
+        <div class="card-text">
+            <div class="hello-text">반갑습니다,</div>
+            <div class="name-text"><span class="name-highlight">{login_uid} {admin_uinfo.get('title','')}</span>님</div>
+            <div class="msg-text">오늘도 활기찬 하루 되세요!</div>
+        </div>
+        <div class="card-image"><img src="{img_src}"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
     if login_uinfo.get('role') == 'admin':
         st.session_state.admin_mode = st.toggle("🔧 관리자 모드", value=st.session_state.admin_mode)
@@ -519,11 +563,8 @@ else:
         st.markdown('<div class="tab-section-header">설정 및 로그아웃</div>', unsafe_allow_html=True)
         p1 = st.text_input("새 비번", type="password")
         p2 = st.text_input("확인", type="password")
-        
         st.markdown("<br>", unsafe_allow_html=True)
-        
-        # [Ver 4.8 Fix] 버튼 2개 세로 배치 (안정적인 순정 모드)
-        # '저장' 버튼에 type="primary"를 주어 파란색 강조
+        # [Ver 4.9 Fix] 세로 배치 복구 (Columns 제거)
         if st.button("저장", type="primary", use_container_width=True):
             if p1 and p2:
                 if p1 == p2:
