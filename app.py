@@ -1,8 +1,8 @@
-# [Ver 5.7] 옥션원 서울지사 연차확인 시스템 (UI Spacing Fix)
+# [Ver 5.8] 옥션원 서울지사 연차확인 시스템 (CSS Syntax Fix)
 # Update: 2026-02-01
 # Changes:
-# - [UI] 갱신 탭 하단에 넉넉한 여백(Spacer) 추가하여 모바일에서 내용 잘림 방지
-# - [System] 버전 번호 5.7로 상향
+# - [Fix] CSS f-string 중괄호 이스케이프 처리 오류 수정 (NameError 해결)
+# - [System] 버전 번호 5.8로 상향
 
 import streamlit as st
 import pandas as pd
@@ -24,7 +24,7 @@ from dateutil import parser
 # ==============================================================================
 # 0. 버전 관리
 # ==============================================================================
-APP_VERSION = "Ver 5.7"
+APP_VERSION = "Ver 5.8"
 
 # ==============================================================================
 # 1. 페이지 설정 및 CSS
@@ -40,7 +40,7 @@ st.markdown(f"""
     .block-container {{
         max-width: 480px; 
         padding-top: 2rem; 
-        padding-bottom: 2rem; /* 컨테이너 자체 패딩은 유지하되 */
+        padding-bottom: 2rem;
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }}
@@ -106,8 +106,8 @@ st.markdown(f"""
     .special-rule-box {{ color: #5D9CEC; font-weight: 800; margin-top: 15px; background-color: #F0F8FF; padding: 15px; border-radius: 12px; border: 1px solid #5D9CEC; text-align: center; line-height: 1.5; font-size: 0.95rem; }}
     .update-time-caption {{ text-align: left; color: #868e96; font-size: 0.8rem; margin-bottom: 15px; margin-left: 5px; font-weight: 600; letter-spacing: -0.5px; }}
     
-    /* [Ver 5.7 추가] 하단 여백용 클래스 */
-    .bottom-spacer { height: 150px; background-color: transparent; }
+    /* [수정 완료] 중괄호 두 번 {{ }} 사용하여 에러 해결 */
+    .bottom-spacer {{ height: 150px; background-color: transparent; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -312,7 +312,7 @@ def get_image_base64(image_path):
         return None
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 5.7 - 탭3 여백 추가)
+# 4. 메인 로직 (Ver 5.8 - 구문 에러 해결)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -512,7 +512,6 @@ else:
                 """, unsafe_allow_html=True)
         else: st.info("갱신 정보가 없습니다.")
         
-        # [Ver 5.7] 이곳에 넉넉한 하단 여백 추가
         st.markdown('<div class="bottom-spacer"></div>', unsafe_allow_html=True)
 
     with tab4:
