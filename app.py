@@ -1,8 +1,8 @@
-# [Ver 5.6] 옥션원 서울지사 연차확인 시스템 (UI Overlap Fix)
+# [Ver 5.7] 옥션원 서울지사 연차확인 시스템 (UI Spacing Fix)
 # Update: 2026-02-01
 # Changes:
-# - [UI] 버전 표시 방식을 '절대 위치'에서 '흐름 배치'로 변경하여 프로필 카드와 겹침 현상 원천 차단
-# - [System] 버전 번호 5.6으로 상향
+# - [UI] 갱신 탭 하단에 넉넉한 여백(Spacer) 추가하여 모바일에서 내용 잘림 방지
+# - [System] 버전 번호 5.7로 상향
 
 import streamlit as st
 import pandas as pd
@@ -24,7 +24,7 @@ from dateutil import parser
 # ==============================================================================
 # 0. 버전 관리
 # ==============================================================================
-APP_VERSION = "Ver 5.6"
+APP_VERSION = "Ver 5.7"
 
 # ==============================================================================
 # 1. 페이지 설정 및 CSS
@@ -39,21 +39,20 @@ st.markdown(f"""
 
     .block-container {{
         max-width: 480px; 
-        padding-top: 2rem; /* 상단 여백 약간 조정 */
-        padding-bottom: 5rem;
+        padding-top: 2rem; 
+        padding-bottom: 2rem; /* 컨테이너 자체 패딩은 유지하되 */
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
     }}
 
-    /* [Ver 5.6 수정] 겹침 방지를 위해 absolute 제거 -> 일반 블록 요소로 변경 */
     .version-badge {{
         width: 100%;
-        text-align: right; /* 우측 정렬 */
+        text-align: right; 
         color: #adb5bd;
         font-size: 0.8rem;
         font-weight: 700;
-        margin-bottom: 5px; /* 아래 요소(카드)와 간격 확보 */
-        padding-right: 15px; /* 우측 여백 */
+        margin-bottom: 5px;
+        padding-right: 15px; 
         padding-top: 10px;
         display: block;
     }}
@@ -106,6 +105,9 @@ st.markdown(f"""
     
     .special-rule-box {{ color: #5D9CEC; font-weight: 800; margin-top: 15px; background-color: #F0F8FF; padding: 15px; border-radius: 12px; border: 1px solid #5D9CEC; text-align: center; line-height: 1.5; font-size: 0.95rem; }}
     .update-time-caption {{ text-align: left; color: #868e96; font-size: 0.8rem; margin-bottom: 15px; margin-left: 5px; font-weight: 600; letter-spacing: -0.5px; }}
+    
+    /* [Ver 5.7 추가] 하단 여백용 클래스 */
+    .bottom-spacer { height: 150px; background-color: transparent; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -310,14 +312,13 @@ def get_image_base64(image_path):
         return None
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 5.6 - 버전 표시 흐름 배치로 수정)
+# 4. 메인 로직 (Ver 5.7 - 탭3 여백 추가)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
 if user_db_id:
     user_db = load_json_file(user_db_id)
 
-# [UI] 버전 표시를 먼저 렌더링 (블록 요소로 배치하여 겹침 방지)
 st.markdown(f'<div class="version-badge">{APP_VERSION}</div>', unsafe_allow_html=True)
 
 if not st.session_state.get('login_status'):
@@ -448,7 +449,6 @@ else:
                             st.info(f"📝 **내역:** {rt_msg}")
 
                     elif not rt_valid and today_kst.month > file_month:
-                        # [Ver 5.6] 문구 반영 완료
                         st.markdown(f"<span class='stale-badge'>📉 실시간 데이터 대기 중 (연/반차 사용 시 반영됨)</span>", unsafe_allow_html=True)
 
                 render_metric_card("현재 예상 잔여", final_str, "기준 파일", latest_fname, is_main=True)
@@ -512,6 +512,7 @@ else:
                 """, unsafe_allow_html=True)
         else: st.info("갱신 정보가 없습니다.")
         
+        # [Ver 5.7] 이곳에 넉넉한 하단 여백 추가
         st.markdown('<div class="bottom-spacer"></div>', unsafe_allow_html=True)
 
     with tab4:
