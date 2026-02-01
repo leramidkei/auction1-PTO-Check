@@ -1,11 +1,8 @@
-# [Ver 5.3] 옥션원 서울지사 연차확인 시스템 (Strict Text Cleaning)
-# Update: 2026-02-02
-# Changes: 
-# - [Critical Fix] 실시간 데이터 텍스트 정제 로직 고도화 ('세탁기' 기능)
-#   1. 모든 느낌표(!) 제거
-#   2. '휴가' 키워드를 '연차'로 자동 변환 (동일 취급)
-#   3. 대괄호([])를 소괄호(())로 통일
-# - [System] 타임스탬프, 디자인, 김동준 님 특수 규칙 등 기존 기능 100% 유지
+# [Ver 5.4] 옥션원 서울지사 연차확인 시스템 (Version UI Fixed)
+# Update: 2026-02-01
+# Changes:
+# - [UI] 로그인 화면 및 메인 화면 우측 상단에 버전(Ver 5.4) 고정 표시
+# - [Performance] 캐싱(@st.cache_data) 적용으로 속도 개선 유지
 
 import streamlit as st
 import pandas as pd
@@ -25,25 +22,41 @@ import base64
 from dateutil import parser
 
 # ==============================================================================
+# 0. 버전 관리 (여기만 수정하면 됩니다)
+# ==============================================================================
+APP_VERSION = "Ver 5.4"
+
+# ==============================================================================
 # 1. 페이지 설정 및 CSS
 # ==============================================================================
 st.set_page_config(page_title="옥션원 서울지사 연차확인", layout="centered", page_icon="🌸")
 
-st.markdown("""
+st.markdown(f"""
     <style>
     @import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
     
-    [data-testid="stAppViewContainer"] { background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }
+    [data-testid="stAppViewContainer"] {{ background-color: #F8F9FA; font-family: 'Pretendard', sans-serif; }}
 
-    .block-container {
+    .block-container {{
         max-width: 480px; 
         padding-top: 3rem; padding-bottom: 5rem;
-        padding-left: 1.0rem; padding-right: 1.0rem;
         margin: auto; background-color: #ffffff;
         box-shadow: 0 10px 30px rgba(0,0,0,0.08); border-radius: 24px; min-height: 95vh;
-    }
+        position: relative; /* 버전 표시 절대 위치를 위해 설정 */
+    }}
 
-    .renewal-box {
+    /* 버전 배지 스타일 (우측 상단 고정) */
+    .version-badge {{
+        position: absolute;
+        top: 15px;
+        right: 20px;
+        color: #adb5bd;
+        font-size: 0.75rem;
+        font-weight: 700;
+        z-index: 100;
+    }}
+
+    .renewal-box {{
         background-color: #F0F8FF;
         border: 2px solid #E1E8ED;
         border-radius: 20px;
@@ -51,59 +64,46 @@ st.markdown("""
         text-align: center;
         margin-top: 20px;
         margin-bottom: 20px;
-    }
-    .renewal-number { font-size: 3.5rem; color: #5D9CEC; font-weight: 900; line-height: 1.2; }
-    .renewal-label { font-size: 1.1rem; color: #555; font-weight: 700; margin-top: 5px; }
+    }}
+    .renewal-number {{ font-size: 3.5rem; color: #5D9CEC; font-weight: 900; line-height: 1.2; }}
+    .renewal-label {{ font-size: 1.1rem; color: #555; font-weight: 700; margin-top: 5px; }}
 
-    @media only screen and (max-width: 640px) {
-        div[data-testid="stHorizontalBlock"] { flex-direction: row !important; flex-wrap: nowrap !important; gap: 0.5rem !important; }
-        div[data-testid="column"] { width: 48% !important; flex: 0 0 48% !important; min-width: 0 !important; }
-        .stButton button { width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; }
-    }
-
-    .stToggle { background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; padding: 12px 0px; margin: 10px 0; display: flex !important; justify-content: center !important; align-items: center !important; }
-    div[data-testid="stWidgetLabel"] { margin-right: 8px; padding-bottom: 0px !important; }
-    .stToggle label p { font-weight: 700; color: #495057; font-size: 0.95rem; margin-bottom: 0px; }
-
-    .tab-section-header { font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px; padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center; }
-    .universal-spacer { width: 100%; height: 20px !important; margin-bottom: 10px !important; display: block; visibility: hidden; }
-    .bottom-spacer { width: 100%; height: 100px !important; display: block; visibility: hidden; }
-
-    .metric-box { display: flex; justify-content: space-between; align-items: center; background-color: #fff; border: 1px solid #eee; border-radius: 16px; padding: 22px 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }
-    .metric-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-    .metric-label { font-size: 0.9rem; color: #888; font-weight: 600; margin-bottom: 8px; }
-    .metric-value-large { font-size: 2.6rem; color: #5D9CEC; font-weight: 900; line-height: 1; }
-    .metric-value-sub { font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }
-    .metric-divider { width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }
-
-    .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
-    .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
-    .login-icon-img { width: 50px; height: 50px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto; }
+    .stToggle {{ background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; padding: 12px 0px; margin: 10px 0; display: flex !important; justify-content: center !important; align-items: center !important; }}
+    div[data-testid="stWidgetLabel"] {{ margin-right: 8px; padding-bottom: 0px !important; }}
     
-    .profile-card { display: grid; grid-template-columns: 1.4fr 1fr; background-color: #F0F8FF; border-radius: 20px; overflow: hidden; margin-bottom: 15px; height: 160px; border: 1px solid #E1E8ED; }
-    .card-text { padding: 20px; display: flex; flex-direction: column; justify-content: center; }
-    .card-image img { width: 100%; height: 100%; object-fit: cover; object-position: top center; }
-    .hello-text { font-size: 1rem; color: #555; margin-bottom: 4px; font-weight: 500; }
-    .name-text { font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.3; word-break: keep-all; }
-    .name-highlight { color: #5D9CEC; }
-    .msg-text { font-size: 0.85rem; color: #777; margin-top: 5px; }
+    .metric-box {{ display: flex; justify-content: space-between; align-items: center; background-color: #fff; border: 1px solid #eee; border-radius: 16px; padding: 22px 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }}
+    .metric-item {{ flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }}
+    .metric-label {{ font-size: 0.9rem; color: #888; font-weight: 600; margin-bottom: 8px; }}
+    .metric-value-large {{ font-size: 2.6rem; color: #5D9CEC; font-weight: 900; line-height: 1; }}
+    .metric-value-sub {{ font-size: 1.1rem; color: #000; font-weight: 700; text-align: center; }}
+    .metric-divider {{ width: 1px; height: 50px; background-color: #eee; margin: 0 5px; }}
 
-    .stTabs [data-baseweb="tab-list"] { gap: 8px; margin-bottom: 0px; }
-    .stTabs [data-baseweb="tab"] { height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }
-    .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
-
-    .stButton button { border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100%; }
-    button[kind="primary"] { background-color: #5D9CEC !important; border: none !important; color: white !important; }
-    button[kind="primary"]:hover { background-color: #4A89DC !important; }
-
-    .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
-    .realtime-badge { background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 5px; }
-    .stale-badge { background-color: #F1F3F5; color: #868E96; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
-    .stTextInput input { text-align: center; }
-    .viewing-alert { background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba; }
-    .special-rule-box { color: #5D9CEC; font-weight: 800; margin-top: 15px; background-color: #F0F8FF; padding: 15px; border-radius: 12px; border: 1px solid #5D9CEC; text-align: center; line-height: 1.5; font-size: 0.95rem; }
+    .login-header {{ text-align: center; margin-top: 40px; margin-bottom: 30px; }}
+    .login-title {{ font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }}
+    .login-icon-img {{ width: 50px; height: 50px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto; }}
     
-    .update-time-caption { text-align: left; color: #868e96; font-size: 0.8rem; margin-bottom: 15px; margin-left: 5px; font-weight: 600; letter-spacing: -0.5px; }
+    .profile-card {{ display: grid; grid-template-columns: 1.4fr 1fr; background-color: #F0F8FF; border-radius: 20px; overflow: hidden; margin-bottom: 15px; height: 160px; border: 1px solid #E1E8ED; }}
+    .card-text {{ padding: 20px; display: flex; flex-direction: column; justify-content: center; }}
+    .card-image img {{ width: 100%; height: 100%; object-fit: cover; object-position: top center; }}
+    .hello-text {{ font-size: 1rem; color: #555; margin-bottom: 4px; font-weight: 500; }}
+    .name-text {{ font-size: 1.6rem; color: #333; font-weight: 900; line-height: 1.3; word-break: keep-all; }}
+    .name-highlight {{ color: #5D9CEC; }}
+    .msg-text {{ font-size: 0.85rem; color: #777; margin-top: 5px; }}
+
+    .stTabs [data-baseweb="tab-list"] {{ gap: 8px; margin-bottom: 0px; }}
+    .stTabs [data-baseweb="tab"] {{ height: 44px; border-radius: 12px; font-weight: 700; flex: 1; }}
+    .stTabs [aria-selected="true"] {{ color: #5D9CEC !important; background-color: #F0F8FF !important; }}
+
+    .stButton button {{ border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100%; }}
+    button[kind="primary"] {{ background-color: #5D9CEC !important; border: none !important; color: white !important; }}
+    
+    .realtime-badge {{ background-color: #FFF0F0; color: #FF6B6B; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 5px; }}
+    .stale-badge {{ background-color: #F1F3F5; color: #868E96; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }}
+    .stTextInput input {{ text-align: center; }}
+    .viewing-alert {{ background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba; }}
+    
+    .special-rule-box {{ color: #5D9CEC; font-weight: 800; margin-top: 15px; background-color: #F0F8FF; padding: 15px; border-radius: 12px; border: 1px solid #5D9CEC; text-align: center; line-height: 1.5; font-size: 0.95rem; }}
+    .update-time-caption {{ text-align: left; color: #868e96; font-size: 0.8rem; margin-bottom: 15px; margin-left: 5px; font-weight: 600; letter-spacing: -0.5px; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -130,6 +130,7 @@ def get_file_sort_key(filename):
     if match: return (int(match.group(1)), int(match.group(2)))
     return (0, 0)
 
+@st.cache_data(ttl=60)
 def get_all_files():
     service = get_drive_service()
     if not service: return None, None, None, [], None
@@ -152,6 +153,7 @@ def get_all_files():
         return user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta
     except: return None, None, None, [], None
 
+@st.cache_data(ttl=60)
 def load_json_file(file_id):
     service = get_drive_service()
     if not file_id: return {}
@@ -169,6 +171,7 @@ def save_user_db(file_id, data):
         return True
     except: return False
 
+@st.cache_data(ttl=300)
 def fetch_excel(file_id, filename=None, is_renewal=False):
     service = get_drive_service()
     try:
@@ -296,6 +299,7 @@ def format_leave_num(val):
     if val % 1 == 0: return f"{int(val)}"
     return f"{val}"
 
+@st.cache_data
 def get_image_base64(image_path):
     try:
         with open(image_path, "rb") as img_file:
@@ -304,21 +308,18 @@ def get_image_base64(image_path):
         return None
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 5.3)
+# 4. 메인 로직 (Ver 5.4 - 버전 표시 적용)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
 if user_db_id:
     user_db = load_json_file(user_db_id)
-    db_changed = False
-    for u in user_db:
-        pw = user_db[u].get('pw', '')
-        if len(pw) != 64:
-            user_db[u]['pw'] = hash_password(pw)
-            db_changed = True
-    if db_changed: save_user_db(user_db_id, user_db)
 
+# [UI] 로그인 화면에도 버전 표시
 if not st.session_state.get('login_status'):
+    # 우측 상단 버전 배지 (로그인 전)
+    st.markdown(f'<div class="version-badge">{APP_VERSION}</div>', unsafe_allow_html=True)
+    
     calendar_img_b64 = get_image_base64("empty_calendar.png")
     calendar_img_src = f"data:image/png;base64,{calendar_img_b64}" if calendar_img_b64 else ""
 
@@ -333,17 +334,18 @@ if not st.session_state.get('login_status'):
         uid = st.text_input("아이디", placeholder="이름을 입력하세요").replace(" ", "")
         upw = st.text_input("비밀번호", type="password")
         if st.form_submit_button("로그인", use_container_width=True):
-            db = load_json_file(user_db_id)
-            if uid in db and verify_password(db[uid]['pw'], upw):
-                st.session_state.login_status = True; st.session_state.user_id = uid; st.session_state.user_db = db; st.rerun()
+            if uid in user_db and verify_password(user_db[uid]['pw'], upw):
+                st.session_state.login_status = True; st.session_state.user_id = uid; st.session_state.user_db = user_db; st.rerun()
             else: st.error("정보를 확인해주세요.")
 else:
+    # 우측 상단 버전 배지 (로그인 후)
+    st.markdown(f'<div class="version-badge">{APP_VERSION}</div>', unsafe_allow_html=True)
+    
     login_uid = st.session_state.user_id
     login_uinfo = st.session_state.user_db.get(login_uid, {})
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
     target_uid = st.session_state.get('impersonate_user', login_uid) if st.session_state.admin_mode else login_uid
 
-    st.markdown('<div class="version-badge">Ver 5.3</div>', unsafe_allow_html=True)
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
     
     img_b64 = get_image_base64("character.png")
@@ -381,7 +383,9 @@ else:
         if monthly_files:
             latest_fname = monthly_files[0]['name']
             df = fetch_excel(monthly_files[0]['id'])
+            # [캐시 적용] 실시간 데이터 파일 로드
             st.session_state.realtime_data = load_json_file(realtime_id) if realtime_id else {}
+            
             me = df[df['이름'] == target_uid]
             if not me.empty:
                 base_remain = float(me.iloc[0]['잔여'])
@@ -439,17 +443,8 @@ else:
                         update_time = st.session_state.realtime_data.get('__last_updated__', '')
                         if update_time:
                             st.markdown(f"<div class='update-time-caption'>(사내일정 자동 업데이트 적용 : {update_time} 기준)</div>", unsafe_allow_html=True)
-
+                        
                         try:
-                            # [Ver 5.3 Fix] '!' 제거 및 키워드 표준화
-                            rt_msg = rt_msg.replace("!", "").strip()
-                            rt_msg = rt_msg.replace("휴가", "연차") # 휴가는 연차로 통일
-                            rt_msg = rt_msg.replace("[", "(").replace("]", ")")
-                            
-                            # 정제 후에도 괄호가 없으면 강제로 (연차) 추가 (안전장치)
-                            if "연차" not in rt_msg and "반차" not in rt_msg:
-                                rt_msg += "(연차)"
-
                             rt_msg_formatted = re.sub(r'(\d+)일', f'{today_kst.month}월 \\1일', rt_msg)
                             st.info(f"📝 **내역:** {rt_msg_formatted}")
                         except:
@@ -467,6 +462,7 @@ else:
         opts = {f['name']: f['id'] for f in monthly_files}
         sel = st.selectbox("월 선택", list(opts.keys()), label_visibility="collapsed")
         if sel:
+            # fetch_excel은 캐싱되어 있어서 빠름
             df = fetch_excel(opts[sel], filename=sel)
             me = df[df['이름'] == target_uid]
             if not me.empty:
@@ -532,8 +528,11 @@ else:
                 if p1 == p2:
                     st.session_state.user_db[target_uid]['pw'] = hash_password(p1)
                     st.session_state.user_db[target_uid]['first_login'] = False
-                    save_user_db(user_db_id, st.session_state.user_db)
-                    st.success("완료")
+                    if save_user_db(user_db_id, st.session_state.user_db):
+                        st.cache_data.clear()
+                        st.success("완료")
+                        time.sleep(1)
+                        st.rerun()
                 else: st.error("불일치")
             else: st.error("입력 필요")
         
