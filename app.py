@@ -1,9 +1,10 @@
-# [Ver 4.9] 옥션원 서울지사 연차확인 시스템 (Private Repo Image Fix)
+# [Ver 5.0] 옥션원 서울지사 연차확인 시스템 (Login Icon Update)
 # Update: 2026-02-01
 # Changes: 
-# - [Critical Fix] 비공개 저장소에서 이미지 URL 접근 차단 문제 해결
-#   -> 로컬 파일('character.png')을 직접 읽어 Base64 코드로 변환하여 HTML에 임베딩
-# - [System] 기존 모든 기능 및 디자인 유지
+# - [UI] 로그인 화면의 아이콘을 이모지(🏢)에서 로컬 이미지 파일('empty_calendar.png')로 교체
+#   -> 비공개 저장소 호환을 위해 Base64 인코딩 방식 적용
+# - [CSS] 새 아이콘 이미지의 크기와 정렬을 위한 스타일(.login-icon-img) 추가
+# - [System] 기존 모든 기능(로직, 디자인, 보안) 완벽 유지
 
 import streamlit as st
 import pandas as pd
@@ -19,7 +20,7 @@ import os
 import math
 import calendar
 import hashlib
-import base64 # [Ver 4.9] 이미지 변환용 모듈 추가
+import base64
 from dateutil import parser
 
 # ==============================================================================
@@ -115,7 +116,16 @@ st.markdown("""
 
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
-    .login-icon { font-size: 3rem; margin-bottom: 10px; display: block; }
+    
+    /* [Ver 5.0] 로그인 아이콘 이미지 스타일 (기존 이모지 스타일 대체) */
+    .login-icon-img { 
+        width: 50px; /* 기존 이모지 크기와 비슷하게 설정 */
+        height: 50px;
+        margin-bottom: 15px; 
+        display: block; 
+        margin-left: auto; 
+        margin-right: auto; /* 중앙 정렬 */
+    }
     
     .profile-card { display: grid; grid-template-columns: 1.4fr 1fr; background-color: #F0F8FF; border-radius: 20px; overflow: hidden; margin-bottom: 15px; height: 160px; border: 1px solid #E1E8ED; }
     .card-text { padding: 20px; display: flex; flex-direction: column; justify-content: center; }
@@ -350,7 +360,6 @@ def format_leave_num(val):
     if val % 1 == 0: return f"{int(val)}"
     return f"{val}"
 
-# [Ver 4.9] 로컬 이미지 파일을 읽어서 Base64 문자열로 반환하는 함수
 def get_image_base64(image_path):
     try:
         with open(image_path, "rb") as img_file:
@@ -359,7 +368,7 @@ def get_image_base64(image_path):
         return None
 
 # ==============================================================================
-# 4. 메인 로직 (Ver 4.9)
+# 4. 메인 로직 (Ver 5.0)
 # ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
@@ -374,7 +383,17 @@ if user_db_id:
     if db_changed: save_user_db(user_db_id, user_db)
 
 if not st.session_state.get('login_status'):
-    st.markdown("""<div class="login-header"><span class="login-icon">🏢</span><div class="login-title">옥션원 서울지사<br>연차확인</div></div>""", unsafe_allow_html=True)
+    # [Ver 5.0] 로그인 아이콘: 로컬 이미지 파일을 Base64로 읽어서 표시
+    calendar_img_b64 = get_image_base64("empty_calendar.png")
+    calendar_img_src = f"data:image/png;base64,{calendar_img_b64}" if calendar_img_b64 else ""
+
+    st.markdown(f"""
+        <div class="login-header">
+            <img src="{calendar_img_src}" class="login-icon-img" alt="달력 아이콘">
+            <div class="login-title">옥션원 서울지사<br>연차확인</div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     with st.form("login"):
         uid = st.text_input("아이디", placeholder="이름을 입력하세요").replace(" ", "")
         upw = st.text_input("비밀번호", type="password")
@@ -389,16 +408,11 @@ else:
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
     target_uid = st.session_state.get('impersonate_user', login_uid) if st.session_state.admin_mode else login_uid
 
-    st.markdown('<div class="version-badge">Ver 4.9</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 5.0</div>', unsafe_allow_html=True)
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
     
-    # [Ver 4.9] 로컬 이미지 파일을 읽어와서 표시
     img_b64 = get_image_base64("character.png")
-    if img_b64:
-        img_src = f"data:image/png;base64,{img_b64}"
-    else:
-        # 파일이 없을 경우 깨진 아이콘 대신 빈 투명 이미지나 대체 텍스트 표시 가능 (여기선 그냥 둠)
-        img_src = "" 
+    img_src = f"data:image/png;base64,{img_b64}" if img_b64 else ""
 
     st.markdown(f"""
     <div class="profile-card">
@@ -564,7 +578,6 @@ else:
         p1 = st.text_input("새 비번", type="password")
         p2 = st.text_input("확인", type="password")
         st.markdown("<br>", unsafe_allow_html=True)
-        # [Ver 4.9 Fix] 세로 배치 복구 (Columns 제거)
         if st.button("저장", type="primary", use_container_width=True):
             if p1 and p2:
                 if p1 == p2:
