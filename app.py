@@ -1,10 +1,8 @@
-# [Ver 5.1] 옥션원 서울지사 연차확인 시스템 (Last Update Timestamp)
+# [Ver 5.2] 옥션원 서울지사 연차확인 시스템 (UI Text & Layout Polish)
 # Update: 2026-02-02
 # Changes: 
-# - [Feature] 실시간 데이터 반영 시 '업데이트 시간(__last_updated__)'을 함께 표시
-#   -> 로컬 봇이 저장한 타임스탬프를 읽어와 배지 하단에 출력
-# - [UI] 업데이트 시간은 회색 캡션 스타일로 작게 표시하여 시각적 위계 조정
-# - [System] 기존 Ver 5.0의 모든 기능 유지
+# - [UI] 업데이트 시간 문구 변경 및 위치 상향 조정, 폰트 색상 파란색 변경
+# - [System] Ver 5.1의 모든 기능 유지
 
 import streamlit as st
 import pandas as pd
@@ -51,62 +49,24 @@ st.markdown("""
         margin-top: 20px;
         margin-bottom: 20px;
     }
-    .renewal-number {
-        font-size: 3.5rem;
-        color: #5D9CEC;
-        font-weight: 900;
-        line-height: 1.2;
-    }
-    .renewal-label {
-        font-size: 1.1rem;
-        color: #555;
-        font-weight: 700;
-        margin-top: 5px;
-    }
+    .renewal-number { font-size: 3.5rem; color: #5D9CEC; font-weight: 900; line-height: 1.2; }
+    .renewal-label { font-size: 1.1rem; color: #555; font-weight: 700; margin-top: 5px; }
 
     @media only screen and (max-width: 640px) {
-        div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            gap: 0.5rem !important;
-        }
-        div[data-testid="column"] {
-            width: 48% !important;
-            flex: 0 0 48% !important;
-            min-width: 0 !important;
-        }
-        .stButton button {
-            width: 100% !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-        }
+        div[data-testid="stHorizontalBlock"] { flex-direction: row !important; flex-wrap: nowrap !important; gap: 0.5rem !important; }
+        div[data-testid="column"] { width: 48% !important; flex: 0 0 48% !important; min-width: 0 !important; }
+        .stButton button { width: 100% !important; padding-left: 0 !important; padding-right: 0 !important; }
     }
 
-    .stToggle {
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        border-radius: 12px;
-        padding: 12px 0px;
-        margin-top: 10px; margin-bottom: 10px;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-    }
+    .stToggle { background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; padding: 12px 0px; margin-top: 10px; margin-bottom: 10px; display: flex !important; justify-content: center !important; align-items: center !important; }
     div[data-testid="stWidgetLabel"] { margin-right: 8px; padding-bottom: 0px !important; }
     .stToggle label p { font-weight: 700; color: #495057; font-size: 0.95rem; margin-bottom: 0px; }
 
-    .tab-section-header {
-        font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px;
-        padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center;
-    }
+    .tab-section-header { font-size: 1rem; font-weight: 700; color: #495057; margin-bottom: 15px; padding-left: 5px; border-left: 4px solid #5D9CEC; height: 24px; display: flex; align-items: center; }
     .universal-spacer { width: 100%; height: 20px !important; margin-bottom: 10px !important; display: block; visibility: hidden; }
     .bottom-spacer { width: 100%; height: 100px !important; display: block; visibility: hidden; }
 
-    .metric-box {
-        display: flex; justify-content: space-between; align-items: center;
-        background-color: #fff; border: 1px solid #eee; border-radius: 16px;
-        padding: 22px 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px;
-    }
+    .metric-box { display: flex; justify-content: space-between; align-items: center; background-color: #fff; border: 1px solid #eee; border-radius: 16px; padding: 22px 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); margin-bottom: 20px; }
     .metric-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
     .metric-label { font-size: 0.9rem; color: #888; font-weight: 600; margin-bottom: 8px; }
     .metric-value-large { font-size: 2.6rem; color: #5D9CEC; font-weight: 900; line-height: 1; }
@@ -115,11 +75,7 @@ st.markdown("""
 
     .login-header { text-align: center; margin-top: 40px; margin-bottom: 30px; }
     .login-title { font-size: 2.2rem; font-weight: 800; color: #5D9CEC; line-height: 1.3; }
-    
-    .login-icon-img { 
-        width: 50px; height: 50px;
-        margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto;
-    }
+    .login-icon-img { width: 50px; height: 50px; margin-bottom: 15px; display: block; margin-left: auto; margin-right: auto; }
     
     .profile-card { display: grid; grid-template-columns: 1.4fr 1fr; background-color: #F0F8FF; border-radius: 20px; overflow: hidden; margin-bottom: 15px; height: 160px; border: 1px solid #E1E8ED; }
     .card-text { padding: 20px; display: flex; flex-direction: column; justify-content: center; }
@@ -134,10 +90,7 @@ st.markdown("""
     .stTabs [aria-selected="true"] { color: #5D9CEC !important; background-color: #F0F8FF !important; }
 
     .stButton button { border-radius: 10px; font-weight: 700; font-size: 0.9rem; padding: 0.7rem 0; width: 100%; }
-    
-    button[kind="primary"] {
-        background-color: #5D9CEC !important; border: none !important; color: white !important;
-    }
+    button[kind="primary"] { background-color: #5D9CEC !important; border: none !important; color: white !important; }
     button[kind="primary"]:hover { background-color: #4A89DC !important; }
 
     .version-badge { text-align: right; color: #adb5bd; font-size: 0.75rem; font-weight: 600; margin-bottom: 5px; }
@@ -145,21 +98,22 @@ st.markdown("""
     .stale-badge { background-color: #F1F3F5; color: #868E96; padding: 5px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: inline-block; margin-bottom: 10px; }
     .stTextInput input { text-align: center; }
     .viewing-alert { background-color: #fff3cd; color: #856404; padding: 8px; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: bold; margin-bottom: 15px; border: 1px solid #ffeeba; }
-    
     .special-rule-box { color: #5D9CEC; font-weight: 800; margin-top: 15px; background-color: #F0F8FF; padding: 15px; border-radius: 12px; border: 1px solid #5D9CEC; text-align: center; line-height: 1.5; font-size: 0.95rem; }
     
-    /* [Ver 5.1] 업데이트 시간 캡션 스타일 */
+    /* [Ver 5.2] 업데이트 시간 캡션 스타일 수정 (위치 상향, 파란색) */
     .update-time-caption {
         text-align: left;
-        color: #999;
+        color: #5D9CEC; /* 파란색으로 변경 */
         font-size: 0.75rem;
+        margin-top: -8px; /* 위로 바짝 붙임 */
         margin-bottom: 10px;
         margin-left: 5px;
-        font-weight: 500;
+        font-weight: 600;
     }
     </style>
     """, unsafe_allow_html=True)
 
+# ... (이하 로직은 기존 Ver 5.1과 100% 동일하므로 생략하지 않고 모두 포함) ...
 # ==============================================================================
 # 2. 구글 드라이브 & 유틸리티
 # ==============================================================================
@@ -291,9 +245,6 @@ def fetch_excel(file_id, filename=None, is_renewal=False):
             return pd.DataFrame(parsed)
     except: return pd.DataFrame()
 
-# ==============================================================================
-# 3. 유틸리티 함수 & 특수 규칙 계산기
-# ==============================================================================
 def hash_password(password):
     return hashlib.sha256(str(password).encode()).hexdigest()
 
@@ -356,9 +307,6 @@ def get_image_base64(image_path):
     except:
         return None
 
-# ==============================================================================
-# 4. 메인 로직 (Ver 5.1)
-# ==============================================================================
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
 if user_db_id:
@@ -396,7 +344,7 @@ else:
     if 'admin_mode' not in st.session_state: st.session_state.admin_mode = False
     target_uid = st.session_state.get('impersonate_user', login_uid) if st.session_state.admin_mode else login_uid
 
-    st.markdown('<div class="version-badge">Ver 5.1</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-badge">Ver 5.2</div>', unsafe_allow_html=True)
     admin_uinfo = st.session_state.user_db.get(login_uid, {})
     
     img_b64 = get_image_base64("character.png")
@@ -488,14 +436,14 @@ else:
                     if rt_valid and rt_used > 0: 
                         future_msg = " (예정 포함)" if future_used_cnt > 0 else ""
                         st.markdown(f"<span class='realtime-badge'>📉 실시간{future_msg} -{format_leave_num(rt_used)}개 반영됨</span>", unsafe_allow_html=True)
-                        
-                        # [Ver 5.1] 업데이트 시간 표시
-                        update_time = st.session_state.realtime_data.get('__last_updated__', '')
-                        if update_time:
-                            st.markdown(f"<div class='update-time-caption'>(사내일정 실시간 업데이트 : {update_time})</div>", unsafe_allow_html=True)
-
                         try:
                             rt_msg_formatted = re.sub(r'(\d+)일', f'{today_kst.month}월 \\1일', rt_msg)
+                            
+                            # [Ver 5.2] 업데이트 시간 표시 로직 변경
+                            update_time = st.session_state.realtime_data.get('__last_updated__', '')
+                            if update_time:
+                                st.markdown(f"<div class='update-time-caption'>(사내일정 자동 업데이트 적용 : {update_time} 기준)</div>", unsafe_allow_html=True)
+                            
                             st.info(f"📝 **내역:** {rt_msg_formatted}")
                         except:
                             st.info(f"📝 **내역:** {rt_msg}")
