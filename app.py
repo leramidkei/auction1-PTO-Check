@@ -1,8 +1,8 @@
-# [Ver 5.8] 옥션원 서울지사 연차확인 시스템 (CSS Syntax Fix)
-# Update: 2026-02-01
+# [Ver 5.8] 옥션원 서울지사 연차확인 시스템 (Syntax & Init Fix)
+# Update: 2026-02-04
 # Changes:
-# - [Fix] CSS f-string 중괄호 이스케이프 처리 오류 수정 (NameError 해결)
-# - [System] 버전 번호 5.8로 상향
+# - [Critical Fix] CSS f-string 중괄호 문법 오류 수정 (.bottom-spacer)
+# - [Stability] user_db 초기화 로직 보강 (잠깨기 후 연결 지연 시 에러 방지)
 
 import streamlit as st
 import pandas as pd
@@ -106,7 +106,7 @@ st.markdown(f"""
     .special-rule-box {{ color: #5D9CEC; font-weight: 800; margin-top: 15px; background-color: #F0F8FF; padding: 15px; border-radius: 12px; border: 1px solid #5D9CEC; text-align: center; line-height: 1.5; font-size: 0.95rem; }}
     .update-time-caption {{ text-align: left; color: #868e96; font-size: 0.8rem; margin-bottom: 15px; margin-left: 5px; font-weight: 600; letter-spacing: -0.5px; }}
     
-    /* [수정 완료] 중괄호 두 번 {{ }} 사용하여 에러 해결 */
+    /* [Ver 5.8 수정] 중괄호 두 번 {{ }} 사용하여 에러 완벽 해결 */
     .bottom-spacer {{ height: 150px; background-color: transparent; }}
     </style>
     """, unsafe_allow_html=True)
@@ -314,6 +314,8 @@ def get_image_base64(image_path):
 # ==============================================================================
 # 4. 메인 로직 (Ver 5.8 - 구문 에러 해결)
 # ==============================================================================
+user_db = {} # [안전장치] 일단 빈 딕셔너리로 초기화 (파일 로드 실패 시 에러 방지)
+
 user_db_id, renewal_id, realtime_id, monthly_files, realtime_meta = get_all_files()
 
 if user_db_id:
