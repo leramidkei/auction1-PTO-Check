@@ -1,0 +1,17 @@
+name: Keep App Awake
+
+on:
+  schedule:
+    # 매 60분(1시간)마다 실행 (한국 시간 기준이 아닌 UTC 기준이지만, 간격이 중요함)
+    # "0 * * * *" -> 매시 정각 (예: 1:00, 2:00, 3:00 ...)
+    - cron: "0 * * * *"
+  workflow_dispatch: # 수동 실행 버튼 추가 (테스트용)
+
+jobs:
+  wake_up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send request to Streamlit App
+        run: |
+          curl -I https://auction1-pto-check-yoco6lndlsgq4pubmtqw3h.streamlit.app/
+          echo "Ping sent to keep the app awake!"
