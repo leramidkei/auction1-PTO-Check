@@ -11,8 +11,17 @@ jobs:
   wake_up:
     runs-on: ubuntu-latest
     steps:
-      - name: Wake up Streamlit App
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
         run: |
-          curl -v https://auction1-pto-check-yoco6lndlsgq4pubmtqw3h.streamlit.app/ \
-          -H "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-          echo "Ping sent to keep the app awake with Browser User-Agent!"
+          python -m pip install --upgrade pip
+          pip install selenium
+          
+      - name: Wake up Streamlit App
+        run: python tests/wake_up.py
