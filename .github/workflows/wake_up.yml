@@ -4,7 +4,7 @@ on:
   schedule:
     # 매 60분(1시간)마다 실행 (한국 시간 기준이 아닌 UTC 기준이지만, 간격이 중요함)
     # "0 * * * *" -> 매시 정각 (예: 1:00, 2:00, 3:00 ...)
-    - cron: "*/30 * * * *"
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -25,3 +25,4 @@ jobs:
           
       - name: Wake up Streamlit App
         run: python tests/wake_up.py
+
