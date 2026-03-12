@@ -8,6 +8,8 @@ on:
 jobs:
   wake_up:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # 이 두 줄을 추가해 주세요.
     steps:
       - uses: actions/checkout@v4
       
@@ -23,4 +25,5 @@ jobs:
           
       - name: Wake up Streamlit App
         run: python tests/wake_up.py
+
 
